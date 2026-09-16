@@ -5,20 +5,20 @@ import { formatCurrency } from '@/lib/utils/bookingNumber';
 
 export default function BookingPrintTemplate({ booking, payments, hallSettings }) {
   const hall = hallSettings || {};
-  const hallName = hall.hall_name || 'ريفيرا';
+  const hallName = hall.hall_name || 'قاعة قمة الريف ( ريفييرا سابقا )';
 
   return (
     <div id="booking-print-area" style={{ fontFamily: 'Cairo, Arial, sans-serif', direction: 'rtl', background: '#fff', color: '#1a1a2e', width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm 14mm', fontSize: '11pt', lineHeight: 1.6, boxSizing: 'border-box' }}>
       
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #1a2e5a', paddingBottom: '10px', marginBottom: '18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #0f382a', paddingBottom: '10px', marginBottom: '18px' }}>
         <div style={{ flex: 1 }}>
           {hall.logo_url ? (
             <img src={hall.logo_url} alt="شعار القاعة" style={{ maxHeight: '70px', maxWidth: '160px', objectFit: 'contain' }} />
           ) : (
-            <div style={{ fontSize: '22pt', fontWeight: '800', color: '#1a2e5a' }}>{hallName}</div>
+            <div style={{ fontSize: '20pt', fontWeight: '800', color: '#0f382a' }}>{hallName}</div>
           )}
-          {hall.logo_url && <div style={{ fontSize: '14pt', fontWeight: '700', color: '#1a2e5a', marginTop: '4px' }}>{hallName}</div>}
+          {hall.logo_url && <div style={{ fontSize: '14pt', fontWeight: '700', color: '#0f382a', marginTop: '4px' }}>{hallName}</div>}
         </div>
         <div style={{ textAlign: 'left', fontSize: '9pt', color: '#555' }}>
           {hall.phone && <div>هاتف: {hall.phone}</div>}

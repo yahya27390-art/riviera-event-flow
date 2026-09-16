@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CreditCard, CheckCircle2, AlertTriangle, Clock, Search, Printer, Receipt } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Clock, Search, Printer, Receipt, MessageSquare } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import PageHeader from '@/components/shared/PageHeader';
@@ -208,9 +208,31 @@ export default function PendingPayments() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" onClick={() => openPayment(booking)} className="gap-1">
-                          <CreditCard className="w-3.5 h-3.5" /> تسديد
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          {booking.customer_phone && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 gap-1 text-xs border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                              onClick={() => {
+                                const cleanPhone = booking.customer_phone.replace(/\D/g, '');
+                                const phone = cleanPhone.startsWith('966') ? cleanPhone : `966${cleanPhone.replace(/^0/, '')}`;
+                                const hallName = hallSettings.hall_name || 'قاعة قمة الريف';
+                                const ibanText = hallSettings.iban ? `\nرقم الحساب البنكي (IBAN):\n${hallSettings.iban}` : '';
+                                const message = encodeURIComponent(
+                                  `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنود تذكيركم بموعد مناسبتكم في ${hallName} بتاريخ ${booking.event_date}.\nالمبلغ المتبقي للتحصيل: ${formatCurrency(booking.remaining_amount)}${ibanText}\n\nيرجى التكرم بتسديد المبلغ وتزويدنا بصورة الإيصال. شاكرين لكم تعاونكم!`
+                                );
+                                window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+                              }}
+                              title="إرسال تذكير واتساب"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> واتساب
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => openPayment(booking)} className="h-8 gap-1 text-xs bg-primary text-primary-foreground font-bold">
+                            <CreditCard className="w-3.5 h-3.5" /> تسديد
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
