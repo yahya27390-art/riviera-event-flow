@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/riviera-event-flow/',
   logLevel: 'error', // Suppress warnings, only show errors
   plugins: [
     base44({
