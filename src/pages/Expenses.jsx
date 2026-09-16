@@ -1,0 +1,326 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Plus, Receipt, Trash2, Pencil } from 'lucide-react';
+import { format } from 'date-fns';
+import PageHeader from '@/components/shared/PageHeader';
+import EmptyState from '@/components/shared/EmptyState';
+import { formatCurrency } from '@/lib/utils/bookingNumber';
+import HijriDatePicker from '@/components/shared/HijriDatePicker';
+import { gregorianToHijri } from '@/lib/hijri';
+import { useAuth } from '@/lib/AuthContext';
+import { toast } from 'sonner';
+
+const EXPENSE_TYPES = [
+  'كهرباء', 'عمالة', 'صيانة', 'رواتب', 'إدارية', 'طارئة', 'بنكية',
+  'تجهيز فرح', 'زهور وديكور', 'كماليات', 'مشتريات', 'أخرى'
+];
+
+const TYPE_COLORS = {
+  'كهرباء': 'bg-amber-100 text-amber-700 border-amber-200',
+  'عمالة': 'bg-blue-100 text-blue-700 border-blue-200',
+  'صيانة': 'bg-purple-100 text-purple-700 border-purple-200',
+  'رواتب': 'bg-green-100 text-green-700 border-green-200',
+  'إدارية': 'bg-slate-100 text-slate-700 border-slate-200',
+  'طارئة': 'bg-red-100 text-red-700 border-red-200',
+  'بنكية': 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  'تجهيز فرح': 'bg-pink-100 text-pink-700 border-pink-200',
+  'زهور وديكور': 'bg-rose-100 text-rose-700 border-rose-200',
+  'كماليات': 'bg-violet-100 text-violet-700 border-violet-200',
+  'مشتريات': 'bg-orange-100 text-orange-700 border-orange-200',
+};
+
+const todayGreg = new Date().toISOString().split('T')[0];
+const emptyForm = {
+  expense_type: 'تجهيز فرح', amount: '', payment_method: 'نقدي', description: '',
+  expense_date: todayGreg,
+  expense_date_hijri: gregorianToHijri(todayGreg),
+};
+
+export default function Expenses() {
+  const [showDialog, setShowDialog] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const [filterType, setFilterType] = useState('all');
+  const [form, setForm] = useState(emptyForm);
+  const [editExpenseId, setEditExpenseId] = useState(null);
+  const [confirmEdit, setConfirmEdit] = useState(false);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['expenses'],
+    queryFn: () => base44.entities.Expense.list('-created_date', 500),
+  });
+
+  const create = useMutation({
+    mutationFn: async (data) => {
+      const expense = await base44.entities.Expense.create({ ...data, amount: parseFloat(data.amount) });
+      if (data.payment_method === 'نقدي') {
+        await base44.entities.CashTransaction.create({
+          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
+          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
+          amount: parseFloat(data.amount), transaction_date: data.expense_date,
+        });
+      } else {
+        await base44.entities.BankTransaction.create({
+          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
+          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
+          amount: parseFloat(data.amount), transaction_date: data.expense_date,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setShowDialog(false);
+      setForm(emptyForm);
+      toast.success('تم تسجيل المصروف');
+    },
+  });
+
+  const deleteExpense = useMutation({
+    mutationFn: (id) => base44.entities.Expense.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['expenses'] }); setDeleteId(null); toast.success('تم حذف المصروف'); },
+  });
+
+  const updateExpense = useMutation({
+    mutationFn: async ({ id, data }) => {
+      await base44.entities.Expense.update(id, {
+        expense_type: data.expense_type,
+        amount: parseFloat(data.amount),
+        payment_method: data.payment_method,
+        description: data.description,
+        expense_date: data.expense_date,
+        edited_by: user?.full_name || user?.email || '—',
+      });
+      // مزامنة المعاملة المرتبطة (حذف القديمة وإنشاء الجديدة)
+      await base44.entities.CashTransaction.deleteMany({ reference_id: id, source: 'مصروف' });
+      await base44.entities.BankTransaction.deleteMany({ reference_id: id, source: 'مصروف' });
+      const label = `${data.expense_type}${data.description ? ' - ' + data.description : ''}`;
+      if (data.payment_method === 'نقدي') {
+        await base44.entities.CashTransaction.create({
+          type: 'مصروف', source: 'مصروف', reference_id: id,
+          reference_label: label, amount: parseFloat(data.amount), transaction_date: data.expense_date,
+        });
+      } else {
+        await base44.entities.BankTransaction.create({
+          type: 'مصروف', source: 'مصروف', reference_id: id,
+          reference_label: label, amount: parseFloat(data.amount), transaction_date: data.expense_date,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setShowDialog(false);
+      setEditExpenseId(null);
+      setConfirmEdit(false);
+      toast.success('تم تعديل المصروف');
+    },
+  });
+
+  const filteredExpenses = filterType === 'all' ? expenses : expenses.filter(e => e.expense_type === filterType);
+  const total = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // Summary by type
+  const summaryByType = EXPENSE_TYPES.reduce((acc, type) => {
+    const amount = expenses.filter(e => e.expense_type === type).reduce((s, e) => s + (e.amount || 0), 0);
+    if (amount > 0) acc[type] = amount;
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <PageHeader
+        title="المصروفات"
+        description={`إجمالي: ${formatCurrency(expenses.reduce((s, e) => s + (e.amount || 0), 0))}`}
+        actions={<Button onClick={() => { setForm(emptyForm); setEditExpenseId(null); setShowDialog(true); }}><Plus className="w-4 h-4 ml-2" /> مصروف جديد</Button>}
+      />
+
+      {/* Summary Cards by Type */}
+      {Object.keys(summaryByType).length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
+          {Object.entries(summaryByType).map(([type, amount]) => (
+            <Card key={type} className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterType(filterType === type ? 'all' : type)}>
+              <CardContent className="p-4">
+                <Badge variant="outline" className={`text-xs mb-2 ${TYPE_COLORS[type] || 'bg-muted text-muted-foreground'}`}>{type}</Badge>
+                <p className="font-bold text-sm">{formatCurrency(amount)}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Filter */}
+      <div className="flex items-center gap-3 mb-4">
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="تصفية حسب النوع" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">جميع الأنواع</SelectItem>
+            {EXPENSE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        {filterType !== 'all' && (
+          <span className="text-sm text-muted-foreground">{filteredExpenses.length} سجل • إجمالي: {formatCurrency(total)}</span>
+        )}
+      </div>
+
+      {filteredExpenses.length === 0 ? (
+        <EmptyState icon={Receipt} title="لا توجد مصروفات" description="ابدأ بإضافة أول مصروف" />
+      ) : (
+        <Card className="border-0 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="text-right">التاريخ</TableHead>
+                  <TableHead className="text-right">النوع</TableHead>
+                  <TableHead className="text-right">الوصف</TableHead>
+                  <TableHead className="text-right">الطريقة</TableHead>
+                  <TableHead className="text-right">المبلغ</TableHead>
+                  <TableHead className="text-right">إجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredExpenses.map(e => (
+                  <TableRow key={e.id} className="hover:bg-muted/30">
+                    <TableCell className="text-sm">
+                      {e.expense_date ? (
+                        <div>
+                          <div className="font-medium">{gregorianToHijri(e.expense_date)} هـ</div>
+                          <div className="text-xs text-muted-foreground">{format(new Date(e.expense_date), 'dd/MM/yyyy')} م</div>
+                        </div>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className={TYPE_COLORS[e.expense_type] || 'bg-muted text-muted-foreground'}>{e.expense_type}</Badge></TableCell>
+                    <TableCell className="text-sm max-w-xs">
+                      <div className="truncate">{e.description || '-'}</div>
+                      {e.edited_by && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">عُدّل بواسطة: {e.edited_by}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={e.payment_method === 'نقدي' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}>
+                        {e.payment_method}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-semibold text-sm">{formatCurrency(e.amount)}</TableCell>
+                    <TableCell>
+                      {isAdmin ? (
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                            setForm({
+                              expense_type: e.expense_type,
+                              amount: String(e.amount || ''),
+                              payment_method: e.payment_method,
+                              description: e.description || '',
+                              expense_date: e.expense_date,
+                              expense_date_hijri: gregorianToHijri(e.expense_date),
+                            });
+                            setEditExpenseId(e.id);
+                            setShowDialog(true);
+                          }}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(e.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
+
+      <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setEditExpenseId(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{editExpenseId ? 'تعديل مصروف' : 'مصروف جديد'}</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); if (editExpenseId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="space-y-4">
+            <div className="space-y-2">
+              <Label>نوع المصروف</Label>
+              <Select value={form.expense_type} onValueChange={v => setForm({ ...form, expense_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{EXPENSE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>المبلغ *</Label>
+              <Input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required dir="ltr" placeholder="0.00" />
+            </div>
+            <div className="space-y-2">
+              <Label>وسيلة الدفع</Label>
+              <Select value={form.payment_method} onValueChange={v => setForm({ ...form, payment_method: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="نقدي">نقدي (خزينة)</SelectItem>
+                  <SelectItem value="بنك">بنك</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>الوصف</Label>
+              <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} placeholder="تفاصيل إضافية..." />
+            </div>
+            <HijriDatePicker
+              label="التاريخ"
+              value={{ hijri: form.expense_date_hijri, gregorian: form.expense_date }}
+              onChange={({ hijri, gregorian }) => setForm({ ...form, expense_date: gregorian, expense_date_hijri: hijri })}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>إلغاء</Button>
+              <Button type="submit" disabled={create.isPending || updateExpense.isPending}>
+                {editExpenseId ? 'تعديل' : (create.isPending ? 'جاري الحفظ...' : 'حفظ')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>هل أنت متأكد من حذف هذا المصروف؟</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteExpense.mutate(deleteId)} className="bg-destructive text-destructive-foreground">حذف</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* تأكيد التعديل */}
+      <AlertDialog open={confirmEdit} onOpenChange={setConfirmEdit}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد التعديل</AlertDialogTitle>
+            <AlertDialogDescription>هل أنت متأكد من تعديل هذا المصروف؟</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => updateExpense.mutate({ id: editExpenseId, data: form })}>
+              تأكيد التعديل
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

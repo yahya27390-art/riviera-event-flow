@@ -1,0 +1,16 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "accountant"
+      ],
+      "default": "accountant",
+      "description": "\u0635\u0644\u0627\u062d\u064a\u0629 \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645"
+    }
+  },
+  "required": []
+}
