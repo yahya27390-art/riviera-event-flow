@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/utils/bookingNumber';
 
 export default function BookingPrintTemplate({ booking, payments, hallSettings }) {
   const hall = hallSettings || {};
-  const hallName = hall.hall_name || 'قاعة قمة الريف ( ريفييرا سابقا )';
+  const hallName = hall.hall_name || 'قاعة قمة الريف';
 
   return (
     <div id="booking-print-area" style={{ fontFamily: 'Cairo, Arial, sans-serif', direction: 'rtl', background: '#fff', color: '#1a1a2e', width: '210mm', minHeight: '297mm', margin: '0 auto', padding: '12mm 14mm', fontSize: '11pt', lineHeight: 1.6, boxSizing: 'border-box' }}>

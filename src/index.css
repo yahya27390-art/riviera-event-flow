@@ -149,3 +149,15 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.4);
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.dock-glow {
+  box-shadow: 0 12px 35px -5px rgba(0, 0, 0, 0.25), 0 0 25px -3px rgba(16, 185, 129, 0.15);
+}
