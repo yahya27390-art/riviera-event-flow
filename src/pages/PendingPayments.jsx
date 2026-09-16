@@ -292,17 +292,10 @@ export default function PendingPayments() {
                 <Button type="button" variant="outline" onClick={() => setPaymentDialog(null)}>إلغاء</Button>
                 {parseFloat(payment.amount) > 0 && (
                   <Button type="button" variant="outline" className="gap-1" onClick={() => {
-                    const { data: s = [] } = { data: [] };
-                    // build receipt preview
-                    import('@/lib/hijri').then(({ default: _, ...hijriLib }) => {});
-                    import('@/components/print/PaymentReceipt').then(({ buildPaymentReceipt: bpr }) => {
-                      const paidAfter = (paymentDialog.paid_amount || 0) + parseFloat(payment.amount || 0);
-                      const fakeBooking = { ...paymentDialog, paid_amount: paidAfter, remaining_amount: (paymentDialog.final_amount || 0) - paidAfter };
-                      const html = bpr({}, fakeBooking, payment);
-                      const win = window.open('', '_blank', 'width=700,height=1000');
-                      win.document.write(html);
-                      win.document.close();
-                    });
+                    const paidAfter = (paymentDialog.paid_amount || 0) + parseFloat(payment.amount || 0);
+                    const updatedBooking = { ...paymentDialog, paid_amount: paidAfter, remaining_amount: (paymentDialog.final_amount || 0) - paidAfter };
+                    const html = buildPaymentReceipt(hallSettings, updatedBooking, payment);
+                    openPrintWindow(html, `إيصال قبض ${paymentDialog.booking_number}`);
                   }}>
                     <Receipt className="w-4 h-4" /> معاينة الإيصال
                   </Button>

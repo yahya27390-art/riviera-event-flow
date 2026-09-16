@@ -156,7 +156,7 @@ export const base44 = {
   },
   auth: {
     async me() {
-      const savedUser = localStorage.getItem('riviera_user');
+      const savedUser = localStorage.getItem('qemat_alreef_user');
       if (savedUser) {
         try {
           return JSON.parse(savedUser);
@@ -167,12 +167,12 @@ export const base44 = {
       return {
         id: 'admin-1',
         full_name: 'مدير النظام',
-        email: 'admin@riviera.com',
+        email: 'admin@qemat-alreef.com',
         role: 'admin'
       };
     },
     logout(redirectUrl) {
-      localStorage.removeItem('riviera_user');
+      localStorage.removeItem('qemat_alreef_user');
       if (redirectUrl) {
         window.location.href = redirectUrl;
       }

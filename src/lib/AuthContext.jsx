@@ -7,7 +7,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState({
     id: 'user-admin',
     full_name: 'مدير النظام',
-    email: 'admin@riviera.com',
+    email: 'admin@qemat-alreef.com',
     role: 'admin'
   });
   const [isAuthenticated, setIsAuthenticated] = useState(true);
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
   const switchRole = (newRole) => {
     const updated = { ...user, role: newRole };
     setUser(updated);
-    localStorage.setItem('riviera_user', JSON.stringify(updated));
+    localStorage.setItem('qemat_alreef_user', JSON.stringify(updated));
   };
 
   const logout = (shouldRedirect = false) => {
@@ -54,12 +54,12 @@ export const AuthProvider = ({ children }) => {
     const adminUser = {
       id: 'user-admin',
       full_name: 'مدير النظام',
-      email: 'admin@riviera.com',
+      email: 'admin@qemat-alreef.com',
       role: 'admin'
     };
     setUser(adminUser);
     setIsAuthenticated(true);
-    localStorage.setItem('riviera_user', JSON.stringify(adminUser));
+    localStorage.setItem('qemat_alreef_user', JSON.stringify(adminUser));
   };
 
   return (

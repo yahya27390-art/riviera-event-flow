@@ -1,6 +1,6 @@
 -- ==============================================================================
--- 🏛️ RIVIERA EVENT FLOW - MASTER SUPABASE (POSTGRESQL) SCHEMA
--- نظام إدارة قاعة قمة الريف (ريفييرا سابقاً) للحفلات والمناسبات
+-- 🏛️ QEMAT ALREEF ACCOUNTING SYSTEM - SUPABASE POSTGRESQL SCHEMA
+-- نظام حسابات وإدارة قاعة قمة الريف للمناسبات
 -- ==============================================================================
 
 -- 1. Enable Required Extensions
@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.hall_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hall_name TEXT NOT NULL DEFAULT 'قاعة قمة الريف ( ريفييرا سابقا )',
+    hall_name TEXT NOT NULL DEFAULT 'قاعة قمة الريف',
     logo_url TEXT,
     commercial_register TEXT,
     tax_number TEXT,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.hall_settings (
 
 -- Insert Default Hall Settings if empty
 INSERT INTO public.hall_settings (hall_name, morning_price, evening_price)
-SELECT 'قاعة قمة الريف ( ريفييرا سابقا )', 5000.00, 12000.00
+SELECT 'قاعة قمة الريف', 5000.00, 12000.00
 WHERE NOT EXISTS (SELECT 1 FROM public.hall_settings);
 
 -- ==============================================================================
@@ -223,7 +223,7 @@ ALTER TABLE public.bank_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Allow read and write for authenticated & anon client with valid api key
+-- Allow full read and write access for authenticated & anon client with valid api key
 DO $$
 DECLARE
     tbl text;

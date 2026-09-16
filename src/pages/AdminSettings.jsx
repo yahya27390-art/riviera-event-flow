@@ -109,14 +109,26 @@ export default function AdminSettings() {
     },
   });
 
-  const handleLogoUpload = async (e) => {
+  const handleLogoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('حجم الصورة كبير، يرجى اختيار صورة أقل من 2 ميجابايت');
+      return;
+    }
     setLogoUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setForm(prev => ({ ...prev, logo_url: file_url }));
-    setLogoUploading(false);
-    toast.success('تم رفع الشعار');
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const base64Url = uploadEvent.target.result;
+      setForm(prev => ({ ...prev, logo_url: base64Url }));
+      setLogoUploading(false);
+      toast.success('تم تحميل الشعار بنجاح! اضغط "حفظ إعدادات القاعة" لتثبيته.');
+    };
+    reader.onerror = () => {
+      setLogoUploading(false);
+      toast.error('فشل قراءة ملف الصورة');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleInvite = async (e) => {
@@ -164,35 +176,54 @@ export default function AdminSettings() {
             <Card className="border-0 shadow-sm">
               <CardHeader><CardTitle className="text-base">الشعار والاسم</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-start gap-6">
-                  <div className="flex-shrink-0">
-                    {form.logo_url ? (
-                      <img src={form.logo_url} alt="الشعار" className="w-24 h-24 object-contain rounded-xl border bg-white p-2" />
-                    ) : (
-                      <div className="w-24 h-24 rounded-xl border-2 border-dashed bg-muted flex items-center justify-center">
-                        <Building2 className="w-8 h-8 text-muted-foreground" />
+                    <div className="flex items-start gap-6">
+                      <div className="flex-shrink-0">
+                        {form.logo_url ? (
+                          <img src={form.logo_url} alt="الشعار" className="w-24 h-24 object-contain rounded-xl border bg-white p-2 shadow-sm" />
+                        ) : (
+                          <img src="./logo.png" alt="الشعار الافتراضي" className="w-24 h-24 object-contain rounded-xl border bg-white p-2 shadow-sm" />
+                        )}
+                        <label className="mt-2 block">
+                          <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                          <Button type="button" variant="outline" size="sm" className="w-full mt-2 text-xs" disabled={logoUploading} asChild>
+                            <span className="cursor-pointer">
+                              <Upload className="w-3 h-3 ml-1" /> {logoUploading ? 'جاري التحميل...' : 'رفع شعار مخصص'}
+                            </span>
+                          </Button>
+                        </label>
                       </div>
-                    )}
-                    <label className="mt-2 block">
-                      <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                      <Button type="button" variant="outline" size="sm" className="w-full mt-2" disabled={logoUploading} asChild>
-                        <span className="cursor-pointer">
-                          <Upload className="w-3 h-3 ml-1" /> {logoUploading ? 'جاري الرفع...' : 'رفع شعار'}
-                        </span>
-                      </Button>
-                    </label>
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="space-y-2">
-                      <Label>اسم القاعة *</Label>
-                      <Input value={form.hall_name} onChange={e => setForm({ ...form, hall_name: e.target.value })} required placeholder="مثال: قاعة ريفيرا" />
+                      <div className="flex-1 space-y-3">
+                        <div className="space-y-2">
+                          <Label>اسم القاعة *</Label>
+                          <Input value={form.hall_name} onChange={e => setForm({ ...form, hall_name: e.target.value })} required placeholder="قاعة قمة الريف" />
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-xs text-muted-foreground font-semibold">نماذج الشعار المعتمدة:</span>
+                          <Button 
+                            type="button" 
+                            variant="secondary" 
+                            size="sm" 
+                            className="text-xs h-7"
+                            onClick={() => { setForm(prev => ({ ...prev, logo_url: './logo.png' })); toast.success('تم اختيار الشعار الخطي الكلاسيكي'); }}
+                          >
+                            الشعار الخطي
+                          </Button>
+                          <Button 
+                            type="button" 
+                            variant="secondary" 
+                            size="sm" 
+                            className="text-xs h-7 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                            onClick={() => { setForm(prev => ({ ...prev, logo_url: './logo-gold.jpg' })); toast.success('تم اختيار الشعار الذهبي الملكي'); }}
+                          >
+                            الشعار الذهبي الملكي
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label>المدينة</Label>
                       <Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="الرياض" />
                     </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 

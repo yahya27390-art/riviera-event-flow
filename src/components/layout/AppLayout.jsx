@@ -1,20 +1,21 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import MobileNav from './MobileNav';
-import FloatingActionButton from './FloatingActionButton';
+import LuxuryNavbar from './LuxuryNavbar';
+import IPhoneBottomNav from './IPhoneBottomNav';
 
 export default function AppLayout() {
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className="lg:mr-64 min-h-screen pb-20 lg:pb-0">
-        <div className="p-4 md:p-6 lg:p-8 pt-16 lg:pt-8">
-          <Outlet />
-        </div>
+    <div className="min-h-screen bg-background flex flex-col selection:bg-amber-500/30 selection:text-amber-900 dark:selection:text-amber-200">
+      {/* Top Luxury Navbar (Desktop / Tablet / Mobile Header) */}
+      <LuxuryNavbar />
+
+      {/* Main App Content: Full Width with Max Constraint */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-28 lg:pb-12 animate-in fade-in duration-300">
+        <Outlet />
       </main>
-      <MobileNav />
-      <FloatingActionButton />
+
+      {/* iOS Style Bottom Floating Navigation (Mobile & iPhone) */}
+      <IPhoneBottomNav />
     </div>
   );
 }

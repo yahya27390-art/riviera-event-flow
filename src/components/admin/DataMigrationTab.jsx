@@ -137,7 +137,7 @@ export default function DataMigrationTab() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `riviera_database_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `qemat_alreef_database_backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('تم تحميل ملف النسخة الاحتياطية بنجاح!');
@@ -147,10 +147,10 @@ export default function DataMigrationTab() {
   };
 
   const copySqlNotice = () => {
-    navigator.clipboard.writeText('-- افتح ملف supabase_riviera_schema.sql وانسخ محتواه بالكامل إلى SQL Editor في Supabase');
+    navigator.clipboard.writeText('-- افتح ملف supabase_schema.sql وانسخ محتواه بالكامل إلى SQL Editor في Supabase');
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2000);
-    toast.info('تم نسخ التعليمات، يمكنك تشغيل ملف supabase_riviera_schema.sql في Supabase');
+    toast.info('تم نسخ التعليمات، يمكنك تشغيل ملف supabase_schema.sql في Supabase');
   };
 
   return (
@@ -194,7 +194,7 @@ export default function DataMigrationTab() {
                       يرجى فتح لوحة تحكم <strong>Supabase</strong> ثم الدخول إلى <strong>SQL Editor</strong> وتشغيل محتوى ملف:
                     </p>
                     <code className="block p-2 bg-black/10 rounded text-xs">
-                      supabase_riviera_schema.sql
+                      supabase_schema.sql
                     </code>
                   </AlertDescription>
                 </Alert>
