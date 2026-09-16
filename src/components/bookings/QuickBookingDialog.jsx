@@ -12,17 +12,28 @@ import HijriDatePicker from '@/components/shared/HijriDatePicker';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+import { DEFAULT_SECTIONS } from '@/lib/systemSettings';
+
 const pricePresets = [8000, 10000, 12000, 15000];
 
-export default function QuickBookingDialog({ open, onClose, presetDate, presetHijri, availableSections }) {
+export default function QuickBookingDialog({ open, onClose, presetDate, presetHijri, availableSections: propSections }) {
   const queryClient = useQueryClient();
+
+  const { data: settingsList = [] } = useQuery({
+    queryKey: ['hallSettings'],
+    queryFn: () => base44.entities.HallSettings.list(),
+    enabled: open,
+  });
+  const hallSettings = settingsList[0] || {};
+  const sectionsList = propSections || hallSettings.custom_sections || DEFAULT_SECTIONS;
+
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
     event_date: presetDate || '',
     event_date_hijri: presetHijri || '',
-    hall_section: availableSections?.[0] || 'رجال ونساء',
-    base_price: 12000,
+    hall_section: sectionsList[0]?.id || 'رجال ونساء',
+    base_price: hallSettings.evening_price || 12000,
     initial_payment_amount: '',
     initial_payment_method: 'نقدي',
   });
@@ -187,18 +198,14 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
           {/* Hall Section Segmented Control */}
           <div className="space-y-1.5">
             <Label className="text-xs font-black text-foreground">قسم القاعة</Label>
-            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-muted/50 border border-border/60">
-              {[
-                { id: 'رجال ونساء', label: 'كامل القاعة 🏛️' },
-                { id: 'رجال فقط', label: 'قسم الرجال 🧔' },
-                { id: 'نساء فقط', label: 'قسم النساء 🧕' },
-              ].map(sec => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 rounded-2xl bg-muted/50 border border-border/60">
+              {sectionsList.map(sec => (
                 <button
                   key={sec.id}
                   type="button"
                   onClick={() => updateField('hall_section', sec.id)}
                   className={cn(
-                    "py-2 rounded-xl text-xs font-bold transition-all",
+                    "py-2 rounded-xl text-xs font-bold transition-all text-center",
                     form.hall_section === sec.id
                       ? "bg-primary text-primary-foreground shadow-sm font-black"
                       : "text-muted-foreground hover:text-foreground"

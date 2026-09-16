@@ -1,4 +1,7 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { DEFAULT_PACKAGES, DEFAULT_SECTIONS, DEFAULT_EVENT_TYPES } from '@/lib/systemSettings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,74 +11,37 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { 
   Plus, Trash2, Save, CreditCard, AlertTriangle, Sparkles, User, Calendar, 
   DollarSign, Package, Coffee, Utensils, Crown, Flame, Music, Gift, 
-  Check, CheckCircle2, ChevronDown, Percent, Wallet, Building2
+  Check, CheckCircle2, ChevronDown, Percent, Wallet, Building2, Building, CalendarHeart
 } from 'lucide-react';
 import HijriDatePicker from '@/components/shared/HijriDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 
-// Predefined authentic Saudi hospitality and venue packages
-const saudiHospitalityPackages = [
-  {
-    id: 'coffee',
-    name: 'باقة القهوة والضيافة السعودية الملكية',
-    shortName: 'القهوة والضيافة السعودية',
-    price: 800,
-    icon: Coffee,
-    color: 'from-amber-700 to-amber-900',
-    desc: 'قهوجية ومباشرين بزي رسمي، دلال رسلان، تمور فاخرة، شاي ومخلط هيل'
-  },
-  {
-    id: 'buffet',
-    name: 'باقة البوفيه والعشاء الفاخر VIP',
-    shortName: 'بوفيه عشاء فاخر',
-    price: 5000,
-    icon: Utensils,
-    color: 'from-emerald-700 to-emerald-900',
-    desc: 'بوفيه مفتوح ملكي متنوع أو ذبائح مع المقبلات والسلطات والعصائر'
-  },
-  {
-    id: 'stage',
-    name: 'كوشة المسرح وتنسيق الورد الملكي',
-    shortName: 'كوشة وتنسيق مسرح',
-    price: 2500,
-    icon: Crown,
-    color: 'from-purple-700 to-indigo-900',
-    desc: 'تصميم كوشة عروس فخمة مع إضاءة المسرح وممشى العرسان'
-  },
-  {
-    id: 'dj',
-    name: 'هندسة الصوت والدي جي الاحترافي',
-    shortName: 'دي جي ونظام صوتي',
-    price: 1500,
-    icon: Music,
-    color: 'from-blue-700 to-cyan-900',
-    desc: 'نظام صوتي محيطي متكامل مع مشغلة / مهندس صوت للمناسبة'
-  },
-  {
-    id: 'effects',
-    name: 'هندسة الإضاءة والمؤثرات وبخار الليزر',
-    shortName: 'مؤثرات وبخار وليزر',
-    price: 600,
-    icon: Flame,
-    color: 'from-rose-700 to-red-900',
-    desc: 'أجهزة بخار كثيف، مدافع شرار بارد، ليزر متطور وسبوت لايت'
-  },
-  {
-    id: 'reception',
-    name: 'طاولات الاستقبال والضيافة والبخور',
-    shortName: 'طاولات استقبال وبخور',
-    price: 1200,
-    icon: Gift,
-    color: 'from-amber-600 to-yellow-800',
-    desc: 'مباخر ملكية، عطور شرقية، وتوزيعات حلويات استقبال فاخرة'
-  },
-];
+const iconMap = {
+  Coffee: Coffee,
+  Utensils: Utensils,
+  Crown: Crown,
+  Music: Music,
+  Flame: Flame,
+  Gift: Gift,
+  Package: Package,
+  Sparkles: Sparkles,
+};
 
 const pricePresets = [8000, 10000, 12000, 15000, 18000, 20000];
 
 export default function BookingForm({ booking, onSubmit, onCancel, isLoading, existingBookings = [] }) {
+  const { data: settingsList = [] } = useQuery({
+    queryKey: ['hallSettings'],
+    queryFn: () => base44.entities.HallSettings.list(),
+  });
+  const hallSettings = settingsList[0] || {};
+
+  const availablePackages = (hallSettings.packages || DEFAULT_PACKAGES).filter(p => p.active !== false);
+  const availableSections = hallSettings.custom_sections || DEFAULT_SECTIONS;
+  const availableEventTypes = hallSettings.custom_event_types || DEFAULT_EVENT_TYPES;
+
   const [form, setForm] = useState(booking || {
     customer_name: '',
     customer_phone: '',
@@ -83,13 +49,13 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
     voucher_number: '',
     event_date: '',
     event_date_hijri: '',
-    hall_section: 'رجال ونساء',
-    event_type: 'زواج',
+    hall_section: availableSections[0]?.id || 'رجال ونساء',
+    event_type: availableEventTypes[0]?.id || 'زواج',
     shift_time: 'مسائي',
     service_type: 'خدمات كاملة',
     notes: '',
     status: 'معلق',
-    base_price: 12000,
+    base_price: hallSettings.evening_price || 12000,
     items: [],
     discount: 0,
     initial_payment_amount: '',
@@ -260,7 +226,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
         </CardContent>
       </Card>
 
-      {/* 2. iOS Card: Event Details & Segmented Selectors */}
+      {/* 2. iOS Card: Event Details & Dynamic Segmented Selectors */}
       <Card className="glass-card border-border/80 shadow-md rounded-3xl overflow-hidden">
         <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
           <CardTitle className="text-base font-black flex items-center gap-2 text-foreground">
@@ -296,15 +262,11 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
             </div>
           )}
 
-          {/* iOS Segmented Selector 1: Hall Section (قسم القاعة) */}
+          {/* Dynamic Hall Sections */}
           <div className="space-y-2">
             <Label className="font-black text-xs text-foreground">قسم القاعة المطلوب</Label>
-            <div className="grid grid-cols-3 gap-2 p-1.5 rounded-2xl bg-muted/50 border border-border/60">
-              {[
-                { id: 'رجال ونساء', label: 'كامل القاعة (قسمين) 🏛️', desc: 'رجال ونساء' },
-                { id: 'رجال فقط', label: 'قسم الرجال فقط 🧔', desc: 'صالات الرجال' },
-                { id: 'نساء فقط', label: 'قسم النساء فقط 🧕', desc: 'صالات النساء' },
-              ].map(sec => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5 rounded-2xl bg-muted/50 border border-border/60">
+              {availableSections.map(sec => (
                 <button
                   key={sec.id}
                   type="button"
@@ -322,17 +284,11 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
             </div>
           </div>
 
-          {/* iOS Segmented Selector 2: Event Type (نوع المناسبة) */}
+          {/* Dynamic Event Types */}
           <div className="space-y-2">
             <Label className="font-black text-xs text-foreground">نوع المناسبة والاحتفال</Label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1.5 rounded-2xl bg-muted/50 border border-border/60">
-              {[
-                { id: 'زواج', label: 'حفل زفاف وفرح 💍' },
-                { id: 'ملكة وعقد قران', label: 'عقد قران وملكة 📜' },
-                { id: 'حفل تخرج', label: 'حفل تخرج 🎓' },
-                { id: 'اجتماع ومؤتمر', label: 'اجتماع وشركات 🏢' },
-                { id: 'مناسبة خاصة', label: 'مناسبة خاصة ✨' },
-              ].map(evt => (
+              {availableEventTypes.map(evt => (
                 <button
                   key={evt.id}
                   type="button"
@@ -421,7 +377,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
         </CardContent>
       </Card>
 
-      {/* 3. iOS Card: Interactive Base Price & Saudi Hospitality Packages */}
+      {/* 3. iOS Card: Interactive Base Price & Dynamic Hospitality Packages */}
       <Card className="glass-card border-border/80 shadow-md rounded-3xl overflow-hidden">
         <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -432,7 +388,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
                 </div>
                 <span>سعر إيجار القاعة والباقات المضافة</span>
               </CardTitle>
-              <CardDescription className="text-xs">حدد السعر الأساسي للقاعة واختر باقات الضيافة والتجهيز السعودية</CardDescription>
+              <CardDescription className="text-xs">حدد السعر الأساسي للقاعة واختر باقات الضيافة والتجهيز المعتمدة</CardDescription>
             </div>
             <Button 
               type="button" 
@@ -513,16 +469,16 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
             </div>
           </div>
 
-          {/* Interactive Saudi Hospitality Packages Grid */}
+          {/* Dynamic Packages Grid */}
           <div className="space-y-2.5">
             <Label className="font-black text-xs text-foreground flex items-center justify-between">
-              <span>باقات الضيافة والخدمات السعودية (اضغط للتحديد السريع):</span>
-              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">باقات معتمدة</span>
+              <span>باقات الضيافة والخدمات المتاحة ({availablePackages.length}):</span>
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">باقات قابلة للتعديل في لوحة التحكم</span>
             </Label>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {saudiHospitalityPackages.map((pkg) => {
-                const Icon = pkg.icon;
+              {availablePackages.map((pkg) => {
+                const IconComponent = iconMap[pkg.icon] || Sparkles;
                 const isSelected = isPackageSelected(pkg.name);
 
                 return (
@@ -540,13 +496,13 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
                       <div className="flex items-center gap-2.5">
                         <div className={cn(
                           "w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm transition-all",
-                          `bg-gradient-to-br ${pkg.color}`,
+                          `bg-gradient-to-br ${pkg.color || 'from-amber-700 to-amber-900'}`,
                           isSelected ? "scale-105" : ""
                         )}>
-                          <Icon className="w-4.5 h-4.5" />
+                          <IconComponent className="w-4.5 h-4.5" />
                         </div>
                         <div>
-                          <p className="text-xs font-black text-foreground line-clamp-1">{pkg.shortName}</p>
+                          <p className="text-xs font-black text-foreground line-clamp-1">{pkg.shortName || pkg.name}</p>
                           <p className="text-[11px] font-black text-amber-600 dark:text-amber-400">{pkg.price.toLocaleString('ar-SA')} ر.س</p>
                         </div>
                       </div>
@@ -628,7 +584,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
         </CardContent>
       </Card>
 
-      {/* 4. iOS Card: Financial Summary & Discount (Live Dynamic Breakdown) */}
+      {/* 4. iOS Card: Financial Summary & Discount */}
       <Card className="glass-card border-border/80 shadow-md rounded-3xl overflow-hidden">
         <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
           <CardTitle className="text-base font-black flex items-center gap-2 text-foreground">
@@ -641,9 +597,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
         </CardHeader>
         
         <CardContent className="space-y-4 pt-5">
-          
           <div className="p-4 rounded-2xl bg-card border border-border/80 space-y-3">
-            
             <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground">
               <span className="font-semibold">إجمالي قيمة القاعة والبنود:</span>
               <span className="font-black text-foreground text-sm sm:text-base">{totalAmount.toLocaleString('ar-SA')} ر.س</span>
@@ -674,9 +628,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
               <span>إجمالي قيمة العقد الصافية:</span>
               <span className="text-primary text-xl font-black">{finalAmount.toLocaleString('ar-SA')} ر.س</span>
             </div>
-
           </div>
-
         </CardContent>
       </Card>
 
