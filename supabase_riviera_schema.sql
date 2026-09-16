@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     address TEXT,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -30,22 +31,31 @@ CREATE INDEX IF NOT EXISTS idx_customers_name ON public.customers(name);
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.hall_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    hall_name TEXT NOT NULL DEFAULT 'قاعة قمة الريف',
-    capacity INT DEFAULT 500,
+    hall_name TEXT NOT NULL DEFAULT 'قاعة قمة الريف ( ريفييرا سابقا )',
+    logo_url TEXT,
+    commercial_register TEXT,
+    tax_number TEXT,
+    phone TEXT,
+    address TEXT,
+    city TEXT,
+    email TEXT,
+    website TEXT,
+    bank_name TEXT,
+    iban TEXT,
     morning_price NUMERIC(12, 2) DEFAULT 5000.00,
     evening_price NUMERIC(12, 2) DEFAULT 12000.00,
-    full_day_price NUMERIC(12, 2) DEFAULT 15000.00,
-    deposit_percentage NUMERIC(5, 2) DEFAULT 30.00,
+    deposit_amount NUMERIC(12, 2) DEFAULT 3000.00,
     insurance_amount NUMERIC(12, 2) DEFAULT 1000.00,
-    terms_and_conditions TEXT DEFAULT 'شروط العقد: يتم دفع العربون لتأكيد الحجز، والمبلغ المتبقي قبل موعد الحفل بأسبوع على الأقل.',
+    terms_conditions TEXT DEFAULT 'شروط العقد: يتم دفع العربون لتأكيد الحجز، والمبلغ المتبقي قبل موعد الحفل بأسبوع على الأقل.',
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Insert Default Hall Settings if empty
-INSERT INTO public.hall_settings (hall_name, capacity, morning_price, evening_price, full_day_price)
-SELECT 'قاعة قمة الريف ( ريفييرا سابقا )', 500, 5000.00, 12000.00, 15000.00
+INSERT INTO public.hall_settings (hall_name, morning_price, evening_price)
+SELECT 'قاعة قمة الريف ( ريفييرا سابقا )', 5000.00, 12000.00
 WHERE NOT EXISTS (SELECT 1 FROM public.hall_settings);
 
 -- ==============================================================================
@@ -54,24 +64,27 @@ WHERE NOT EXISTS (SELECT 1 FROM public.hall_settings);
 CREATE TABLE IF NOT EXISTS public.bookings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     booking_number TEXT UNIQUE NOT NULL,
+    voucher_number TEXT,
     customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     customer_name TEXT NOT NULL,
     customer_phone TEXT NOT NULL,
-    event_date DATE NOT NULL,
-    event_period TEXT NOT NULL CHECK (event_period IN ('morning', 'evening', 'full_day')),
-    event_type TEXT NOT NULL DEFAULT 'wedding',
-    guests_count INT DEFAULT 0,
-    hall_price NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    additional_services_price NUMERIC(12, 2) DEFAULT 0.00,
-    insurance_amount NUMERIC(12, 2) DEFAULT 0.00,
-    discount_amount NUMERIC(12, 2) DEFAULT 0.00,
+    event_date TEXT NOT NULL,
+    event_date_hijri TEXT,
+    hall_section TEXT DEFAULT 'رجال ونساء',
+    event_type TEXT NOT NULL DEFAULT 'زواج',
+    service_type TEXT DEFAULT 'خدمات كاملة',
+    status TEXT NOT NULL DEFAULT 'معلق',
+    items JSONB DEFAULT '[]'::JSONB,
     total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    discount NUMERIC(12, 2) DEFAULT 0.00,
+    final_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     paid_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     remaining_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-    status TEXT NOT NULL DEFAULT 'tentative' CHECK (status IN ('tentative', 'confirmed', 'completed', 'cancelled')),
-    services_details JSONB DEFAULT '[]'::JSONB,
-    contract_notes TEXT,
+    initial_payment_amount NUMERIC(12, 2) DEFAULT 0.00,
+    initial_payment_method TEXT DEFAULT 'نقدي',
+    notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -85,16 +98,17 @@ CREATE INDEX IF NOT EXISTS idx_bookings_customer_phone ON public.bookings(custom
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
-    receipt_number TEXT UNIQUE,
-    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    payment_type TEXT NOT NULL DEFAULT 'deposit' CHECK (payment_type IN ('deposit', 'installment', 'final_payment', 'insurance', 'other')),
-    payment_method TEXT NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('cash', 'bank_transfer', 'pos', 'cheque')),
-    payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    booking_number TEXT,
+    customer_name TEXT,
+    customer_phone TEXT,
+    receipt_number TEXT,
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    payment_method TEXT NOT NULL DEFAULT 'نقدي',
     reference_number TEXT,
+    payment_date TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT,
     notes TEXT,
-    created_by TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_booking_id ON public.payments(booking_id);
@@ -105,16 +119,16 @@ CREATE INDEX IF NOT EXISTS idx_payments_date ON public.payments(payment_date);
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.cash_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaction_number TEXT UNIQUE,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('income', 'expense', 'custody_settlement', 'transfer')),
-    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    category TEXT NOT NULL,
-    description TEXT NOT NULL,
-    related_booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
-    related_payment_id UUID REFERENCES public.payments(id) ON DELETE SET NULL,
-    performed_by TEXT,
-    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    reference_id TEXT,
+    reference_label TEXT,
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    transaction_date TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT,
+    description TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_cash_tx_date ON public.cash_transactions(transaction_date);
@@ -124,15 +138,18 @@ CREATE INDEX IF NOT EXISTS idx_cash_tx_date ON public.cash_transactions(transact
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.bank_transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    bank_name TEXT NOT NULL,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('deposit', 'withdrawal', 'transfer')),
-    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    reference_number TEXT,
+    type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    reference_id TEXT,
+    reference_label TEXT,
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    payment_method TEXT DEFAULT 'تحويل بنكي',
+    bank_name TEXT,
+    transaction_date TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT,
     description TEXT,
-    related_booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
-    transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    is_matched BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_bank_tx_date ON public.bank_transactions(transaction_date);
@@ -142,23 +159,35 @@ CREATE INDEX IF NOT EXISTS idx_bank_tx_date ON public.bank_transactions(transact
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.expenses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    expense_number TEXT UNIQUE,
-    category TEXT NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    payment_method TEXT NOT NULL DEFAULT 'cash',
-    vendor_name TEXT,
-    invoice_number TEXT,
+    expense_number TEXT,
+    expense_type TEXT NOT NULL DEFAULT 'أخرى',
+    amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    payment_method TEXT NOT NULL DEFAULT 'نقدي',
     description TEXT,
-    related_booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
-    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    expense_date TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT,
+    edited_by TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenses_date ON public.expenses(expense_date);
-CREATE INDEX IF NOT EXISTS idx_expenses_category ON public.expenses(category);
+CREATE INDEX IF NOT EXISTS idx_expenses_type ON public.expenses(expense_type);
 
 -- ==============================================================================
--- 9. AUTOMATED TRIGGERS & BUSINESS LOGIC
+-- 9. TABLE: users (مستخدمي النظام والصلاحيات)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE,
+    full_name TEXT,
+    role TEXT NOT NULL DEFAULT 'accountant',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_date TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ==============================================================================
+-- 10. AUTOMATED TRIGGERS & BUSINESS LOGIC
 -- ==============================================================================
 
 -- A. Update timestamps trigger function
@@ -170,60 +199,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_customers_updated_at ON public.customers;
 CREATE TRIGGER trg_customers_updated_at BEFORE UPDATE ON public.customers
 FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
+DROP TRIGGER IF EXISTS trg_hall_settings_updated_at ON public.hall_settings;
 CREATE TRIGGER trg_hall_settings_updated_at BEFORE UPDATE ON public.hall_settings
 FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
+DROP TRIGGER IF EXISTS trg_bookings_updated_at ON public.bookings;
 CREATE TRIGGER trg_bookings_updated_at BEFORE UPDATE ON public.bookings
 FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
--- B. Calculate Booking Balance Trigger on Payments
-CREATE OR REPLACE FUNCTION public.sync_booking_payment_totals()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_booking_id UUID;
-    v_total_paid NUMERIC(12, 2);
-    v_total_amount NUMERIC(12, 2);
-BEGIN
-    IF (TG_OP = 'DELETE') THEN
-        v_booking_id := OLD.booking_id;
-    ELSE
-        v_booking_id := NEW.booking_id;
-    END IF;
-
-    IF v_booking_id IS NOT NULL THEN
-        SELECT COALESCE(SUM(amount), 0.00) INTO v_total_paid
-        FROM public.payments
-        WHERE booking_id = v_booking_id;
-
-        SELECT total_amount INTO v_total_amount
-        FROM public.bookings
-        WHERE id = v_booking_id;
-
-        UPDATE public.bookings
-        SET 
-            paid_amount = v_total_paid,
-            remaining_amount = GREATEST(0.00, v_total_amount - v_total_paid),
-            status = CASE 
-                WHEN status = 'cancelled' THEN 'cancelled'
-                WHEN v_total_paid >= v_total_amount AND v_total_amount > 0 THEN 'confirmed'
-                WHEN v_total_paid > 0 THEN 'confirmed'
-                ELSE status
-            END
-        WHERE id = v_booking_id;
-    END IF;
-
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_sync_booking_payments AFTER INSERT OR UPDATE OR DELETE ON public.payments
-FOR EACH ROW EXECUTE FUNCTION public.sync_booking_payment_totals();
-
 -- ==============================================================================
--- 10. ROW LEVEL SECURITY (RLS) POLICIES
+-- 11. ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.hall_settings ENABLE ROW LEVEL SECURITY;
@@ -232,6 +221,7 @@ ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bank_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Allow read and write for authenticated & anon client with valid api key
 DO $$
@@ -239,7 +229,7 @@ DECLARE
     tbl text;
 BEGIN
     FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN (
-        'customers', 'hall_settings', 'bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses'
+        'customers', 'hall_settings', 'bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses', 'users'
     )
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Enable all access for app operations" ON public.%I', tbl);

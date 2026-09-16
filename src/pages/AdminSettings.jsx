@@ -13,10 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Building2, Save, Upload, Users, Plus, Crown, Trash2, ShieldAlert, Mail } from 'lucide-react';
+import { Building2, Save, Upload, Users, Plus, Crown, Trash2, ShieldAlert, Mail, Database } from 'lucide-react';
 import PageHeader from '@/components/shared/PageHeader';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import DataMigrationTab from '@/components/admin/DataMigrationTab';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
@@ -148,8 +149,14 @@ export default function AdminSettings() {
         <TabsList className="bg-muted">
           <TabsTrigger value="hall" className="gap-2 select-none"><Building2 className="w-4 h-4" /> بيانات القاعة</TabsTrigger>
           <TabsTrigger value="users" className="gap-2 select-none"><Users className="w-4 h-4" /> المستخدمون</TabsTrigger>
+          <TabsTrigger value="migration" className="gap-2 select-none"><Database className="w-4 h-4 text-emerald-600" /> قاعدة البيانات وترحيل البيانات</TabsTrigger>
           <TabsTrigger value="danger" className="gap-2 select-none text-destructive"><ShieldAlert className="w-4 h-4" /> حذف الحساب</TabsTrigger>
         </TabsList>
+
+        {/* Database & Migration Settings */}
+        <TabsContent value="migration">
+          <DataMigrationTab />
+        </TabsContent>
 
         {/* Hall Settings */}
         <TabsContent value="hall">
