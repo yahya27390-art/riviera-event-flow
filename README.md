@@ -1,39 +1,45 @@
-**Welcome to your Base44 project** 
+# 🏛️ قاعة قمة الريف للمناسبات والاحتفالات (Riviera Event Flow)
 
-**About**
+نظام إلكتروني سحابي متكامل لإدارة قاعات المناسبات، حجوزات الأفراح والفعاليات، الحسابات المالية، الخزينة النقدية، والتحويلات البنكية.
 
-View and Edit  your app on [Base44.com](http://Base44.com) 
+---
 
-This project contains everything you need to run your app locally.
+## 🌐 رابط المعاينة والتشغيل السحابي (Live Demo)
+👉 **[https://yahya27390-art.github.io/riviera-event-flow/](https://yahya27390-art.github.io/riviera-event-flow/)**
 
-**Edit the code in your local development environment**
+---
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+## ✨ المميزات الرئيسية
+* **إدارة الحجوزات والعقود:** تسجيل الحجوزات، الفترات (صباحي / مسائي / يوم كامل)، باقات الخدمات، وتوليد العقود وسندات القبض.
+* **فحص التوفر اللحظي:** منع تعارض الحجوزات في نفس اليوم أو الفترة.
+* **الخزينة النقدية (الكاش):** متابعة المقبوضات والمصروفات النثرية ورصيد الخزينة المباشر.
+* **التحويلات البنكية:** مطابقة سندات التحويل مع البنوك المعتمدة.
+* **إدارة ومتابعة الدفعات:** تنبيهات بمواعيد سداد الأقساط والمبالغ المتبقية قبل موعد الحفل.
+* **لوحات التحكم والتقارير:** مؤشرات نسبة الإشغال، صافي الأرباح، والإيرادات الشهرية والسنوية.
+* **قاعدة بيانات Supabase (PostgreSQL):** ربط سحابي متكامل مع حماية RLS وTriggers آلية.
 
-**Prerequisites:** 
+---
 
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+## 🚀 التشغيل المحلي (Local Development)
 
+```bash
+# تثبيت الحزم
+npm install
+
+# تشغيل خادم التطوير
+npm run dev
+
+# بناء النسخة الإنتاجية
+npm run build
 ```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
 
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+---
+
+## 🗄️ إعداد قاعدة البيانات (Supabase)
+1. افتح مشروعك في **Supabase** وانتقل إلى **SQL Editor**.
+2. انسخ محتوى الملف `supabase_riviera_schema.sql` واضغط **Run**.
+3. أضف مفاتيح الربط في `.env.local`:
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
-
-Run the app: `npm run dev`
-
-**Publish your changes**
-
-Open [Base44.com](http://Base44.com) and click on Publish.
-
-**Docs & Support**
-
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
