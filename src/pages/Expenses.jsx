@@ -250,43 +250,121 @@ export default function Expenses() {
       )}
 
       <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setEditExpenseId(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editExpenseId ? 'تعديل مصروف' : 'مصروف جديد'}</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); if (editExpenseId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="space-y-4">
-            <div className="space-y-2">
-              <Label>نوع المصروف</Label>
-              <Select value={form.expense_type} onValueChange={v => setForm({ ...form, expense_type: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{EXPENSE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
+          <div className="p-5 pb-4 bg-gradient-to-r from-rose-950 via-rose-900 to-slate-900 text-white border-b border-rose-800/40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black text-white">
+                    {editExpenseId ? 'تعديل سند مصروف' : 'تسجيل مصروف تشغيلي جديد'}
+                  </DialogTitle>
+                  <p className="text-[11px] text-rose-200/80 font-medium">سند صرف معتمد لقاعة قمة الريف 🇸🇦</p>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <form onSubmit={e => { e.preventDefault(); if (editExpenseId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+            
+            {/* Category Selector */}
             <div className="space-y-2">
-              <Label>المبلغ *</Label>
-              <Input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required dir="ltr" placeholder="0.00" />
+              <Label className="text-xs font-black text-foreground">نوع وبند المصروف</Label>
+              <div className="flex flex-wrap gap-1.5 p-1 rounded-2xl bg-muted/40 border border-border/60">
+                {EXPENSE_TYPES.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setForm({ ...form, expense_type: t })}
+                    className={cn(
+                      "text-xs font-bold px-2.5 py-1.5 rounded-xl transition-all",
+                      form.expense_type === t
+                        ? "bg-rose-600 text-white shadow-sm font-black scale-105"
+                        : "bg-card text-muted-foreground hover:text-foreground border border-border/60"
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>وسيلة الدفع</Label>
-              <Select value={form.payment_method} onValueChange={v => setForm({ ...form, payment_method: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="نقدي">نقدي (خزينة)</SelectItem>
-                  <SelectItem value="بنك">بنك</SelectItem>
-                </SelectContent>
-              </Select>
+
+            {/* Amount */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">المبلغ المصروف *</Label>
+              <div className="relative">
+                <Input 
+                  type="number" 
+                  value={form.amount} 
+                  onChange={e => setForm({ ...form, amount: e.target.value })} 
+                  required 
+                  dir="ltr" 
+                  placeholder="0.00"
+                  className="h-11 text-base font-black text-left pl-3 pr-12 rounded-2xl bg-card border-rose-500/30 text-rose-600 dark:text-rose-400"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                  ر.س
+                </span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>الوصف</Label>
-              <Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} placeholder="تفاصيل إضافية..." />
+
+            {/* Payment Method Segmented */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">وسيلة الصرف</Label>
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-muted/50 border border-border/60">
+                {[
+                  { id: 'نقدي', label: 'نقدي كاش 💵' },
+                  { id: 'تحويل بنكي', label: 'تحويل بنكي 🏦' },
+                  { id: 'مدى', label: 'شبكة مدى 💳' },
+                ].map(pm => (
+                  <button
+                    key={pm.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, payment_method: pm.id })}
+                    className={cn(
+                      "py-2 rounded-xl text-xs font-bold transition-all",
+                      form.payment_method === pm.id
+                        ? "bg-card text-foreground shadow-sm font-black border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {pm.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">بيان وتفاصيل المصروف</Label>
+              <Textarea 
+                value={form.description} 
+                onChange={e => setForm({ ...form, description: e.target.value })} 
+                rows={2} 
+                placeholder="مثال: فاتورة صيانة تكييف الصالة الكبرى، شراء بخور وعطور..."
+                className="rounded-2xl bg-card text-xs border-border/80" 
+              />
+            </div>
+
+            {/* Date */}
             <HijriDatePicker
-              label="التاريخ"
+              label="تاريخ الصرف"
               value={{ hijri: form.expense_date_hijri, gregorian: form.expense_date }}
               onChange={({ hijri, gregorian }) => setForm({ ...form, expense_date: gregorian, expense_date_hijri: hijri })}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>إلغاء</Button>
-              <Button type="submit" disabled={create.isPending || updateExpense.isPending}>
-                {editExpenseId ? 'تعديل' : (create.isPending ? 'جاري الحفظ...' : 'حفظ')}
+
+            <DialogFooter className="pt-3 border-t border-border flex flex-row items-center justify-between gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowDialog(false)} className="rounded-xl h-10 px-4 text-xs">
+                إلغاء
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={create.isPending || updateExpense.isPending}
+                className="rounded-xl h-10 px-6 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-black text-xs shadow-md shadow-rose-500/20 active:scale-95 transition-transform"
+              >
+                {editExpenseId ? 'تأكيد التعديل' : (create.isPending ? 'جاري الحفظ...' : 'حفظ سند المصروف')}
               </Button>
             </DialogFooter>
           </form>

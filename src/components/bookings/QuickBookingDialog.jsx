@@ -5,12 +5,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, User, Phone, Sparkles } from 'lucide-react';
+import { Zap, User, Phone, Sparkles, Crown, Check, Calendar } from 'lucide-react';
 import { generateBookingNumber } from '@/lib/utils/bookingNumber';
 import { gregorianToHijri } from '@/lib/hijri';
 import HijriDatePicker from '@/components/shared/HijriDatePicker';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+const pricePresets = [8000, 10000, 12000, 15000];
 
 export default function QuickBookingDialog({ open, onClose, presetDate, presetHijri, availableSections }) {
   const queryClient = useQueryClient();
@@ -19,8 +21,8 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
     customer_phone: '',
     event_date: presetDate || '',
     event_date_hijri: presetHijri || '',
-    hall_section: availableSections?.[0] || 'رجال فقط',
-    base_price: '',
+    hall_section: availableSections?.[0] || 'رجال ونساء',
+    base_price: 12000,
     initial_payment_amount: '',
     initial_payment_method: 'نقدي',
   });
@@ -33,7 +35,8 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
 
   const suggestedCustomer = useMemo(() => {
     if (!form.customer_phone || form.customer_phone.length < 9) return null;
-    return customers.find(c => c.phone === form.customer_phone);
+    const clean = form.customer_phone.replace(/\D/g, '');
+    return customers.find(c => (c.phone || '').replace(/\D/g, '').includes(clean));
   }, [form.customer_phone, customers]);
 
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -61,29 +64,32 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
         paid_amount: initialPaid,
         remaining_amount: basePrice - initialPaid,
       });
+
       if (initialPaid > 0) {
         await base44.entities.Payment.create({
           booking_id: created.id,
           booking_number: bookingNumber,
           amount: initialPaid,
-          payment_method: data.initial_payment_method === 'تحويل بنكي' ? 'تحويل بنكي' : 'نقدي',
+          payment_method: data.initial_payment_method,
           payment_date: new Date().toISOString().split('T')[0],
-          notes: 'دفعة الحجز الأولى',
+          notes: 'عربون حجز سريع',
         });
-        if (data.initial_payment_method === 'نقدي') {
+
+        const txType = data.initial_payment_method === 'نقدي' ? 'cash' : 'bank';
+        if (txType === 'cash') {
           await base44.entities.CashTransaction.create({
             type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `دفعة حجز ${bookingNumber}`,
+            reference_label: `عربون حجز ${bookingNumber}`,
             amount: initialPaid,
             transaction_date: new Date().toISOString().split('T')[0],
           });
         } else {
           await base44.entities.BankTransaction.create({
             type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `دفعة حجز ${bookingNumber}`,
+            reference_label: `عربون حجز ${bookingNumber}`,
             amount: initialPaid,
             transaction_date: new Date().toISOString().split('T')[0],
-            payment_method: 'تحويل بنكي',
+            payment_method: data.initial_payment_method,
           });
         }
       }
@@ -91,127 +97,210 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
     },
     onSuccess: () => {
       queryClient.invalidateQueries();
-      toast.success('تم إنشاء الحجز بنجاح — يمكن إكمال التفاصيل لاحقاً');
+      toast.success('تم إنشاء الحجز السريع بنجاح وتوليد السند المحاسبي');
       onClose();
     },
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.customer_name || !form.customer_phone || !form.event_date) {
-      toast.error('الرجاء تعبئة الاسم والجوال والتاريخ');
+    if (!form.customer_name.trim() || !form.customer_phone.trim() || !form.event_date) {
+      toast.error('يرجى تعبئة كافة الحقول الأساسية المطلوبة');
       return;
     }
     createBooking.mutate(form);
   };
 
-  const sections = availableSections || ['رجال فقط', 'نساء فقط', 'رجال ونساء'];
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-accent" />
-            حجز سريع
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm">اسم العميل *</Label>
-            <div className="relative">
-              <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                value={form.customer_name}
-                onChange={e => updateField('customer_name', e.target.value)}
-                required
-                placeholder="الاسم الكامل"
-                className="pr-10"
-              />
+      <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
+        
+        {/* iOS Luxury Modal Header */}
+        <div className="p-5 pb-4 bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white border-b border-emerald-800/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-white">إنشاء حجز سريع</DialogTitle>
+                <p className="text-[11px] text-emerald-200/80 font-medium">تسجيل سريع للعميل وتثبيت الموعد في التقويم</p>
+              </div>
             </div>
+            <span className="text-xs font-bold bg-amber-500 text-slate-950 px-2.5 py-1 rounded-xl">
+              المملكة 🇸🇦
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+          
+          {/* Customer Name */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-black text-foreground">اسم العميل *</Label>
+            <Input
+              value={form.customer_name}
+              onChange={e => updateField('customer_name', e.target.value)}
+              placeholder="مثال: سلمان بن خالد الدوسري"
+              required
+              className="h-10.5 rounded-2xl bg-card font-semibold text-sm"
+            />
           </div>
 
+          {/* Saudi Phone Number Input */}
           <div className="space-y-1.5">
-            <Label className="text-sm">رقم الجوال *</Label>
-            <div className="relative">
-              <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Label className="text-xs font-black text-foreground">رقم الجوال السعودي *</Label>
+            <div className="relative flex items-center">
               <Input
                 value={form.customer_phone}
                 onChange={e => updateField('customer_phone', e.target.value)}
+                placeholder="05X XXX XXXX"
                 required
                 dir="ltr"
-                placeholder="05xxxxxxxx"
-                className="pr-10"
+                className="h-10.5 rounded-2xl bg-card font-bold text-sm text-left pr-20"
               />
+              <div className="absolute right-2.5 flex items-center gap-1.5 text-xs font-bold text-muted-foreground pointer-events-none select-none border-l pl-2">
+                <span>🇸🇦</span>
+                <span className="font-mono text-[11px]">+966</span>
+              </div>
             </div>
+
             {suggestedCustomer && (
-              <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
-                <Sparkles className="w-4 h-4 text-blue-500" />
-                <span className="text-xs text-blue-700">عميل موجود: {suggestedCustomer.name}</span>
-                <button type="button" onClick={() => updateField('customer_name', suggestedCustomer.name)} className="text-xs font-bold text-blue-600 underline mr-auto">
-                  استخدام
+              <div 
+                onClick={() => updateField('customer_name', suggestedCustomer.name)}
+                className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 cursor-pointer flex items-center justify-between"
+              >
+                <span>عميل مسجل مسبقاً: <strong>{suggestedCustomer.name}</strong></span>
+                <span className="text-[10px] underline font-bold">استخدام الاسم</span>
+              </div>
+            )}
+          </div>
+
+          {/* Date Selector */}
+          <HijriDatePicker
+            label="تاريخ المناسبة *"
+            required
+            value={{ hijri: form.event_date_hijri, gregorian: form.event_date }}
+            onChange={({ hijri, gregorian }) => setForm(f => ({ ...f, event_date: gregorian, event_date_hijri: hijri }))}
+          />
+
+          {/* Hall Section Segmented Control */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-black text-foreground">قسم القاعة</Label>
+            <div className="grid grid-cols-3 gap-1.5 p-1 rounded-2xl bg-muted/50 border border-border/60">
+              {[
+                { id: 'رجال ونساء', label: 'كامل القاعة 🏛️' },
+                { id: 'رجال فقط', label: 'قسم الرجال 🧔' },
+                { id: 'نساء فقط', label: 'قسم النساء 🧕' },
+              ].map(sec => (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => updateField('hall_section', sec.id)}
+                  className={cn(
+                    "py-2 rounded-xl text-xs font-bold transition-all",
+                    form.hall_section === sec.id
+                      ? "bg-primary text-primary-foreground shadow-sm font-black"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {sec.label}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">التاريخ *</Label>
-            {presetDate ? (
-              <div className="p-3 rounded-xl bg-muted/50 text-sm">
-                <span className="font-medium">{form.event_date_hijri || gregorianToHijri(form.event_date)} هـ</span>
-                <span className="text-muted-foreground mr-2">({form.event_date})</span>
+          {/* Base Price with Quick Presets */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-black text-foreground">سعر إيجار القاعة *</Label>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  type="number"
+                  value={form.base_price}
+                  onChange={e => updateField('base_price', e.target.value)}
+                  placeholder="12000"
+                  dir="ltr"
+                  className="w-28 h-8 text-left font-black text-primary bg-card rounded-xl"
+                  required
+                />
+                <span className="text-xs font-bold text-muted-foreground">ر.س</span>
               </div>
-            ) : (
-              <HijriDatePicker
-                value={{ hijri: form.event_date_hijri, gregorian: form.event_date }}
-                onChange={({ hijri, gregorian }) => setForm(prev => ({ ...prev, event_date: gregorian, event_date_hijri: hijri }))}
-                placeholder="اختر التاريخ"
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/40">
+              {pricePresets.map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => updateField('base_price', preset)}
+                  className={cn(
+                    "text-[11px] font-bold px-2 py-0.5 rounded-lg border transition-all",
+                    parseFloat(form.base_price) === preset
+                      ? "bg-amber-500 text-slate-950 border-amber-500 font-black"
+                      : "bg-card text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {preset.toLocaleString('ar-SA')} ر.س
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Initial Deposit & Payment Method */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1">
+              <Label className="text-xs font-black text-foreground">العربون المسدد الآن</Label>
+              <Input
+                type="number"
+                value={form.initial_payment_amount}
+                onChange={e => updateField('initial_payment_amount', e.target.value)}
+                placeholder="0"
+                dir="ltr"
+                className="h-10 rounded-xl bg-card text-left font-bold text-sm"
               />
-            )}
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-black text-foreground">طريقة السداد</Label>
+              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-muted/50 border border-border/60">
+                {[
+                  { id: 'نقدي', label: 'كاش 💵' },
+                  { id: 'تحويل بنكي', label: 'تحويل 🏦' },
+                  { id: 'مدى', label: 'مدى 💳' },
+                ].map(pm => (
+                  <button
+                    key={pm.id}
+                    type="button"
+                    onClick={() => updateField('initial_payment_method', pm.id)}
+                    className={cn(
+                      "py-1.5 rounded-lg text-[10px] font-bold transition-all",
+                      form.initial_payment_method === pm.id
+                        ? "bg-card text-foreground shadow-sm font-black border border-border/80"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {pm.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">القاعة</Label>
-            <Select value={form.hall_section} onValueChange={v => updateField('hall_section', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {sections.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">قيمة الحجز</Label>
-              <Input type="number" value={form.base_price} onChange={e => updateField('base_price', e.target.value)} placeholder="0" dir="ltr" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">الدفعة الأولى</Label>
-              <Input type="number" value={form.initial_payment_amount} onChange={e => updateField('initial_payment_amount', e.target.value)} placeholder="0" dir="ltr" />
-            </div>
-          </div>
-
-          {parseFloat(form.initial_payment_amount) > 0 && (
-            <div className="space-y-1.5">
-              <Label className="text-sm">طريقة الدفع</Label>
-              <Select value={form.initial_payment_method} onValueChange={v => updateField('initial_payment_method', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="نقدي">نقدي → الخزينة</SelectItem>
-                  <SelectItem value="تحويل بنكي">تحويل بنكي → البنك</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button type="submit" disabled={createBooking.isPending} className="w-full" size="lg">
-              <Zap className="w-4 h-4 ml-2" />
-              {createBooking.isPending ? 'جاري الحفظ...' : 'حجز سريع'}
+          {/* Action Footer */}
+          <DialogFooter className="pt-3 border-t border-border flex flex-row items-center justify-between gap-2">
+            <Button type="button" variant="outline" onClick={onClose} className="rounded-xl h-10 px-4 text-xs">
+              إلغاء
             </Button>
-            <p className="text-xs text-center text-muted-foreground">يمكن إكمال التفاصيل لاحقاً من صفحة الحجوزات</p>
+            <Button 
+              type="submit" 
+              disabled={createBooking.isPending}
+              className="rounded-xl h-10 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-transform"
+            >
+              {createBooking.isPending ? 'جاري الإنشاء...' : 'تثبيت الحجز السريع'}
+            </Button>
           </DialogFooter>
+
         </form>
       </DialogContent>
     </Dialog>
