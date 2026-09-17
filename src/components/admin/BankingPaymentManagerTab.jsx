@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { SAUDI_BANKS } from '@/lib/systemSettings';
@@ -8,16 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { Building2, CreditCard, Plus, Trash2, Pencil, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 export default function BankingPaymentManagerTab() {
   const queryClient = useQueryClient();
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [bankForm, setBankForm] = useState({
-    bank_name: SAUDI_BANKS[0],
+    bank_name: SAUDI_BANKS[0] || 'مصرف الراجحي',
     account_name: '',
     account_number: '',
     iban: '',
@@ -29,27 +29,66 @@ export default function BankingPaymentManagerTab() {
   });
   const hallSettings = settingsList[0] || {};
 
-  const bankAccounts = hallSettings.bank_accounts || [
-    {
-      bank_name: hallSettings.bank_name || 'مصرف الراجحي',
-      account_name: hallSettings.hall_name || 'قاعة قمة الريف',
-      account_number: '',
-      iban: hallSettings.iban || 'SA0000000000000000000000',
+  const bankAccounts = useMemo(() => {
+    try {
+      if (Array.isArray(hallSettings.bank_accounts) && hallSettings.bank_accounts.length > 0) {
+        return hallSettings.bank_accounts;
+      }
+      if (typeof hallSettings.bank_accounts === 'string') {
+        const parsed = JSON.parse(hallSettings.bank_accounts);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      if (hallSettings.notes && typeof hallSettings.notes === 'string') {
+        try {
+          const parsedNotes = JSON.parse(hallSettings.notes);
+          if (Array.isArray(parsedNotes?.bank_accounts) && parsedNotes.bank_accounts.length > 0) {
+            return parsedNotes.bank_accounts;
+          }
+        } catch {
+          // not json
+        }
+      }
+    } catch {
+      // fallback
     }
-  ];
+
+    return [
+      {
+        bank_name: hallSettings.bank_name || 'مصرف الراجحي',
+        account_name: hallSettings.hall_name || 'قاعة قمة الريف',
+        account_number: '',
+        iban: hallSettings.iban || 'SA0000000000000000000000',
+      }
+    ];
+  }, [hallSettings]);
 
   const saveBankAccountsMutation = useMutation({
     mutationFn: async (updatedAccounts) => {
       const primary = updatedAccounts[0] || {};
+      
+      let notesObj = {};
+      try {
+        if (hallSettings.notes && hallSettings.notes.startsWith('{')) {
+          notesObj = JSON.parse(hallSettings.notes);
+        }
+      } catch {
+        notesObj = {};
+      }
+      notesObj.bank_accounts = updatedAccounts;
+
       const payload = {
-        bank_accounts: updatedAccounts,
-        bank_name: primary.bank_name || '',
+        bank_name: primary.bank_name || 'مصرف الراجحي',
         iban: primary.iban || '',
+        notes: JSON.stringify(notesObj)
       };
+
       if (hallSettings.id) {
         return base44.entities.HallSettings.update(hallSettings.id, payload);
       } else {
-        return base44.entities.HallSettings.create(payload);
+        return base44.entities.HallSettings.create({
+          hall_name: 'قاعة قمة الريف',
+          ...payload
+        });
       }
     },
     onSuccess: () => {
@@ -89,10 +128,10 @@ export default function BankingPaymentManagerTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-300">
       
       {/* Top Header Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-3xl bg-card border border-border/80 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5 rounded-3xl bg-card border border-border/80 shadow-sm">
         <div>
           <h2 className="text-lg font-black text-foreground flex items-center gap-2">
             <Building2 className="w-5 h-5 text-blue-600" />
@@ -106,7 +145,7 @@ export default function BankingPaymentManagerTab() {
         <Button
           onClick={() => {
             setEditingIndex(null);
-            setBankForm({ bank_name: SAUDI_BANKS[0], account_name: '', account_number: '', iban: '' });
+            setBankForm({ bank_name: SAUDI_BANKS[0] || 'مصرف الراجحي', account_name: '', account_number: '', iban: '' });
             setBankDialogOpen(true);
           }}
           className="rounded-xl h-10 px-4 bg-primary text-primary-foreground font-black text-xs gap-1.5 shadow-md active:scale-95 transition-transform"
