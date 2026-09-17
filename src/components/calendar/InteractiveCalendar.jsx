@@ -25,9 +25,9 @@ export function getSectionBadge(section) {
       type: 'both',
       label: 'رجال ونساء',
       shortLabel: 'رجال ونساء',
-      badgeClass: 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 font-bold',
-      dotClass: 'bg-amber-500',
-      cellClass: 'bg-amber-500/15 border-amber-400',
+      badgeClass: 'bg-sky-100 text-sky-800 dark:text-sky-200 border-sky-300 font-bold',
+      dotClass: 'bg-sky-500',
+      cellBg: 'bg-sky-50/80 dark:bg-sky-950/20',
       icon: '👑',
     };
   }
@@ -36,9 +36,9 @@ export function getSectionBadge(section) {
       type: 'women',
       label: 'نساء فقط',
       shortLabel: 'نساء',
-      badgeClass: 'bg-pink-500/20 text-pink-900 dark:text-pink-200 border-pink-500/40 font-bold',
-      dotClass: 'bg-pink-500',
-      cellClass: 'bg-pink-500/15 border-pink-400',
+      badgeClass: 'bg-rose-100 text-rose-800 dark:text-rose-200 border-rose-300 font-bold',
+      dotClass: 'bg-rose-500',
+      cellBg: 'bg-rose-50/80 dark:bg-rose-950/20',
       icon: '🌸',
     };
   }
@@ -47,9 +47,9 @@ export function getSectionBadge(section) {
       type: 'men',
       label: 'رجال فقط',
       shortLabel: 'رجال',
-      badgeClass: 'bg-emerald-600/20 text-emerald-900 dark:text-emerald-200 border-emerald-500/40 font-bold',
-      dotClass: 'bg-emerald-500',
-      cellClass: 'bg-emerald-500/15 border-emerald-400',
+      badgeClass: 'bg-sky-100 text-sky-800 dark:text-sky-200 border-sky-300 font-bold',
+      dotClass: 'bg-sky-500',
+      cellBg: 'bg-sky-50/80 dark:bg-sky-950/20',
       icon: '👔',
     };
   }
@@ -59,7 +59,7 @@ export function getSectionBadge(section) {
     shortLabel: s,
     badgeClass: 'bg-primary/20 text-primary border-primary/40 font-bold',
     dotClass: 'bg-primary',
-    cellClass: 'bg-primary/15 border-primary/40',
+    cellBg: 'bg-muted/30',
     icon: '📌',
   };
 }
@@ -209,22 +209,57 @@ export default function InteractiveCalendar({ bookings = [] }) {
     window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
   };
 
-  // ─── Minimal Day Cell: clean & mobile-optimised ───────────────────────────
+  // ─── Day Cell: circles (blue=men, pink=women) with hover tooltip ────────────
   const renderDayCell = (dayNumber, dayBookings, isToday, gregorianDate, dayOfWeekName) => {
     const status = getDayStatus(dayBookings);
     const isWeekend = dayOfWeekName === 'الخميس' || dayOfWeekName === 'الجمعة';
     const isSelected = inlineSelectedDate === gregorianDate;
 
-    // Background based on booking status
-    let bg = isWeekend ? 'bg-amber-50 dark:bg-amber-950/10' : 'bg-card';
-    if (status === 'full') bg = 'bg-rose-50 dark:bg-rose-950/20';
-    if (status === 'partial') bg = 'bg-amber-50 dark:bg-amber-950/20';
+    // Derive which section types exist today
+    const hasMenBooking  = dayBookings.some(b => b.hall_section === 'رجال فقط');
+    const hasWomenBooking = dayBookings.some(b => b.hall_section === 'نساء فقط');
+    const hasBothBooking = dayBookings.some(b => !b.hall_section || b.hall_section === 'رجال ونساء' || b.hall_section.includes('كامل'));
+
+    // For tooltip: build customer list per section
+    const menNames = dayBookings.filter(b => b.hall_section === 'رجال فقط').map(b => b.customer_name).join('، ');
+    const womenNames = dayBookings.filter(b => b.hall_section === 'نساء فقط').map(b => b.customer_name).join('، ');
+    const bothNames = dayBookings.filter(b => !b.hall_section || b.hall_section === 'رجال ونساء' || b.hall_section.includes('كامل')).map(b => b.customer_name).join('، ');
+
+    // Cell background
+    let bg = isWeekend ? 'bg-amber-50/60 dark:bg-amber-950/10' : 'bg-card';
     if (isSelected) bg = 'bg-amber-500/15 dark:bg-amber-900/30';
-    if (isToday && !isSelected) bg = 'bg-emerald-50 dark:bg-emerald-950/20';
+    else if (isToday) bg = 'bg-emerald-50 dark:bg-emerald-950/20';
 
     let ring = '';
     if (isSelected) ring = 'ring-2 ring-amber-500';
     else if (isToday) ring = 'ring-2 ring-emerald-500';
+
+    // Circle components with hover tooltip
+    const MenCircle = ({ name }) => (
+      <div className="relative group/dot flex-shrink-0">
+        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-sky-500 shadow-md shadow-sky-500/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95" />
+        {name && (
+          <div className="absolute bottom-full mb-1.5 right-1/2 translate-x-1/2 z-50 pointer-events-none">
+            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-sky-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
+              👔 {name}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
+    const WomenCircle = ({ name }) => (
+      <div className="relative group/dot flex-shrink-0">
+        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-400 shadow-md shadow-rose-400/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95" />
+        {name && (
+          <div className="absolute bottom-full mb-1.5 right-1/2 translate-x-1/2 z-50 pointer-events-none">
+            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-rose-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
+              🌸 {name}
+            </div>
+          </div>
+        )}
+      </div>
+    );
 
     return (
       <button
@@ -233,8 +268,8 @@ export default function InteractiveCalendar({ bookings = [] }) {
         onClick={() => handleCellClick(gregorianDate)}
         onDoubleClick={() => handleOpenDialog(gregorianDate)}
         className={cn(
-          "relative rounded-xl border p-1 flex flex-col items-center gap-0.5",
-          "min-h-[56px] sm:min-h-[72px] transition-all duration-150 active:scale-95 cursor-pointer select-none",
+          "relative rounded-xl border p-1 flex flex-col items-center gap-1",
+          "min-h-[64px] sm:min-h-[80px] transition-all duration-150 active:scale-95 cursor-pointer select-none",
           bg, ring,
           isSelected ? 'border-amber-400' : isToday ? 'border-emerald-400' : 'border-border/60'
         )}
@@ -249,31 +284,32 @@ export default function InteractiveCalendar({ bookings = [] }) {
           {dayNumber}
         </span>
 
-        {/* Today dot */}
-        {isToday && !isSelected && (
-          <span className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />
+        {/* Today indicator */}
+        {isToday && (
+          <span className="w-1 h-1 rounded-full bg-emerald-500" />
         )}
 
-        {/* Section indicators: compact colored dots/pills */}
+        {/* Section Circles */}
         {dayBookings.length > 0 && (
-          <div className="flex flex-col items-center gap-0.5 w-full px-0.5">
-            {dayBookings.slice(0, 2).map((b, i) => {
-              const sec = getSectionBadge(b.hall_section);
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "w-full flex items-center gap-0.5 px-1 rounded-md text-[8px] sm:text-[9px] font-bold truncate leading-tight py-0.5 border",
-                    sec.cellClass
-                  )}
-                >
-                  <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sec.dotClass)} />
-                  <span className="truncate">{sec.icon} {sec.shortLabel}</span>
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-center gap-1 flex-wrap mt-auto pb-0.5">
+            {/* Both booking = blue + pink circles together */}
+            {hasBothBooking && (
+              <>
+                <MenCircle name={bothNames} />
+                <WomenCircle name={bothNames} />
+              </>
+            )}
+            {/* Men-only booking */}
+            {!hasBothBooking && hasMenBooking && (
+              <MenCircle name={menNames} />
+            )}
+            {/* Women-only booking */}
+            {!hasBothBooking && hasWomenBooking && (
+              <WomenCircle name={womenNames} />
+            )}
+            {/* Extra bookings count */}
             {dayBookings.length > 2 && (
-              <span className="text-[8px] text-muted-foreground font-bold">+{dayBookings.length - 2}</span>
+              <span className="text-[8px] text-muted-foreground font-black">+{dayBookings.length - 2}</span>
             )}
           </div>
         )}
@@ -404,16 +440,16 @@ export default function InteractiveCalendar({ bookings = [] }) {
         <CardContent className="p-2 sm:p-4">
           {viewType === 'grid' ? (
             <div>
-              {/* Day headers */}
+              {/* Day headers - full names */}
               <div className="grid grid-cols-7 gap-1 mb-1.5">
                 {HIJRI_DAYS.map((d, i) => {
                   const isWknd = d === 'الخميس' || d === 'الجمعة';
                   return (
                     <div key={i} className={cn(
-                      "text-center text-[10px] sm:text-xs font-black py-1.5 rounded-lg",
+                      "text-center text-[9px] sm:text-[11px] font-black py-1.5 rounded-lg leading-tight",
                       isWknd ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground bg-muted/40"
                     )}>
-                      {d.slice(0, 2)}
+                      {d}
                     </div>
                   );
                 })}
