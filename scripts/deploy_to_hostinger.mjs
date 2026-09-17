@@ -3,21 +3,25 @@ import path from 'path';
 import fs from 'fs';
 
 async function deploy() {
-  const host = process.env.HOSTINGER_FTP_SERVER || '82.198.228.36';
-  const user = process.env.HOSTINGER_FTP_USERNAME;
-  const password = process.env.HOSTINGER_FTP_PASSWORD;
+  const rawHost = process.env.HOSTINGER_FTP_SERVER || '82.198.228.36';
+  const rawUser = process.env.HOSTINGER_FTP_USERNAME || '';
+  const rawPass = process.env.HOSTINGER_FTP_PASSWORD || '';
+
+  const host = rawHost.trim().replace(/[\r\n\t ]/g, '');
+  const user = rawUser.trim().replace(/[\r\n\t ]/g, '');
+  const password = rawPass.trim().replace(/[\r\n]/g, '');
 
   console.log('--- Hostinger Deployment Diagnostic ---');
-  console.log(`Server: ${host}`);
-  console.log(`Username defined: ${Boolean(user)} (Length: ${user ? user.length : 0})`);
-  console.log(`Password defined: ${Boolean(password)} (Length: ${password ? password.length : 0})`);
+  console.log(`Cleaned Server: "${host}" (Length: ${host.length})`);
+  console.log(`Username defined: ${Boolean(user)} (Length: ${user.length})`);
+  console.log(`Password defined: ${Boolean(password)} (Length: ${password.length})`);
 
   if (!user || !password) {
     console.error('❌ Missing HOSTINGER_FTP_USERNAME or HOSTINGER_FTP_PASSWORD in GitHub Secrets!');
     process.exit(1);
   }
 
-  const client = new ftp.Client(30000);
+  const client = new ftp.Client(45000);
   client.ftp.verbose = true;
 
   // Try Plain FTP first, then FTPS
@@ -29,7 +33,7 @@ async function deploy() {
   let connected = false;
   for (const mode of modes) {
     try {
-      console.log(`\n🔄 Attempting connection via ${mode.name}...`);
+      console.log(`\n🔄 Attempting connection via ${mode.name} to ${host}:${mode.port}...`);
       await client.access({
         host,
         user,
