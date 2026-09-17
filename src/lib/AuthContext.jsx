@@ -1,4 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
+import { base44 } from '@/api/base44Client';
 import { 
   hashPasscode, 
   verifyPasscode, 
@@ -13,27 +15,22 @@ const AuthContext = createContext();
 const STORAGE_KEY_AUTH = 'qemat_alreef_auth_session_v1';
 const STORAGE_KEY_CONFIG = 'qemat_alreef_security_config_v1';
 
-// Default Owner Configuration (Can be changed anytime by owner in Settings)
-const DEFAULT_SECURITY_CONFIG = {
-  ownerEmail: 'sqq00100@gmail.com',
-  // Initial default passcode is 7799 (stored as salted SHA-256 hash)
-  // We'll compute hash dynamically on first run if not set
-  inactivityTimeoutMinutes: 15,
-  maxAttempts: 5,
-  autoBackupEnabled: true,
-  backupRetentionDays: 15,
-  securityAudits: []
-};
+const DEFAULT_OWNER_EMAIL = 'sqq00100@gmail.com';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [mustChangePasscode, setMustChangePasscode] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [rateLimitInfo, setRateLimitInfo] = useState(checkLoginRateLimit());
-  const [securityConfig, setSecurityConfig] = useState(DEFAULT_SECURITY_CONFIG);
+  const [securityConfig, setSecurityConfig] = useState({
+    ownerEmail: DEFAULT_OWNER_EMAIL,
+    inactivityTimeoutMinutes: 15,
+    autoBackupEnabled: true,
+    backupRetentionDays: 15
+  });
 
-  const inactivityTimerRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
 
   // Initialize Security Config and Session
@@ -43,18 +40,23 @@ export const AuthProvider = ({ children }) => {
 
   const initAuth = async () => {
     try {
-      // 1. Load or initialize security config
-      let config = DEFAULT_SECURITY_CONFIG;
+      // 1. Load config from localStorage & Supabase
+      let config = {
+        ownerEmail: DEFAULT_OWNER_EMAIL,
+        inactivityTimeoutMinutes: 15,
+        autoBackupEnabled: true,
+        backupRetentionDays: 15
+      };
+
       const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
       if (savedConfig) {
         try {
-          config = { ...DEFAULT_SECURITY_CONFIG, ...JSON.parse(savedConfig) };
+          config = { ...config, ...JSON.parse(savedConfig) };
         } catch {
-          config = DEFAULT_SECURITY_CONFIG;
+          // ignore
         }
       }
 
-      // Initialize default passcode hash if not set (default PIN: 7799)
       if (!config.passcodeHash) {
         config.passcodeHash = await hashPasscode('7799');
         localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(config));
@@ -70,13 +72,14 @@ export const AuthProvider = ({ children }) => {
             setUser(sessionData);
             setIsAuthenticated(true);
             setIsLocked(false);
+            setMustChangePasscode(Boolean(sessionData.mustChangePasscode));
           }
         } catch {
           localStorage.removeItem(STORAGE_KEY_AUTH);
         }
       }
 
-      // 3. Trigger automated daily backup and 15-day purge in the background
+      // 3. Trigger daily backup snapshot check in background
       runAutomatedDailyBackupAndPurge().catch(console.warn);
 
     } catch (err) {
@@ -88,10 +91,10 @@ export const AuthProvider = ({ children }) => {
 
   // Activity Tracker for Auto-Lock
   useEffect(() => {
-    if (!isAuthenticated || isLocked) return;
+    if (!isAuthenticated || isLocked || mustChangePasscode) return;
 
     const timeoutMinutes = securityConfig.inactivityTimeoutMinutes || 15;
-    if (timeoutMinutes <= 0) return; // Never lock
+    if (timeoutMinutes <= 0) return; // Disabled
 
     const timeoutMs = timeoutMinutes * 60 * 1000;
 
@@ -107,18 +110,66 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    // Listen to user interaction events
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     events.forEach(e => window.addEventListener(e, resetInactivity, { passive: true }));
-
-    // Check every 10 seconds
     const interval = setInterval(checkInactivity, 10000);
 
     return () => {
       events.forEach(e => window.removeEventListener(e, resetInactivity));
       clearInterval(interval);
     };
-  }, [isAuthenticated, isLocked, securityConfig.inactivityTimeoutMinutes]);
+  }, [isAuthenticated, isLocked, mustChangePasscode, securityConfig.inactivityTimeoutMinutes]);
+
+  /**
+   * Helper: Get users security map from hall_settings notes and local storage
+   */
+  const getUsersSecurityMap = async () => {
+    let map = {};
+    try {
+      const localMap = localStorage.getItem('qemat_alreef_users_security');
+      if (localMap) {
+        map = JSON.parse(localMap);
+      }
+    } catch {
+      map = {};
+    }
+
+    try {
+      const { data } = await supabase.from('hall_settings').select('notes').limit(1);
+      if (data && data[0]?.notes && data[0].notes.startsWith('{')) {
+        const parsed = JSON.parse(data[0].notes);
+        if (parsed.users_security) {
+          map = { ...map, ...parsed.users_security };
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return map;
+  };
+
+  /**
+   * Helper: Save users security map to hall_settings notes and local storage
+   */
+  const saveUsersSecurityMap = async (map) => {
+    localStorage.setItem('qemat_alreef_users_security', JSON.stringify(map));
+    try {
+      const { data } = await supabase.from('hall_settings').select('*').limit(1);
+      if (data && data[0]) {
+        let notesObj = {};
+        try {
+          if (data[0].notes && data[0].notes.startsWith('{')) notesObj = JSON.parse(data[0].notes);
+        } catch {
+          notesObj = {};
+        }
+        notesObj.users_security = map;
+        await supabase.from('hall_settings').update({ notes: JSON.stringify(notesObj) }).eq('id', data[0].id);
+      }
+    } catch (err) {
+      console.warn('Could not sync users_security to hall_settings:', err.message);
+    }
+  };
 
   /**
    * Strict Login with Email & Passcode
@@ -135,10 +186,58 @@ export const AuthProvider = ({ children }) => {
     }
 
     const cleanEmail = (emailInput || '').trim().toLowerCase();
-    const configEmail = (securityConfig.ownerEmail || 'sqq00100@gmail.com').trim().toLowerCase();
+    const ownerEmail = (securityConfig.ownerEmail || DEFAULT_OWNER_EMAIL).trim().toLowerCase();
 
-    // Verify Email
-    if (cleanEmail !== configEmail && cleanEmail !== 'admin@qemat-alreef.com') {
+    let matchedUser = null;
+    let expectedHash = null;
+    let isOwner = false;
+    let userMustChange = false;
+
+    // 1. Check Owner Account
+    if (cleanEmail === ownerEmail || cleanEmail === 'admin@qemat-alreef.com') {
+      isOwner = true;
+      expectedHash = securityConfig.passcodeHash;
+      matchedUser = {
+        id: 'owner-admin',
+        full_name: 'صاحب المنشأة / الإدارة',
+        email: cleanEmail,
+        role: 'admin'
+      };
+    } else {
+      // 2. Check Other Registered Users
+      const usersSecMap = await getUsersSecurityMap();
+      const userSec = usersSecMap[cleanEmail];
+
+      if (userSec) {
+        expectedHash = userSec.passcodeHash;
+        userMustChange = Boolean(userSec.mustChangePasscode);
+        matchedUser = {
+          id: userSec.id || `user-${Date.now()}`,
+          full_name: userSec.full_name || 'مستخدم النظام',
+          email: cleanEmail,
+          role: userSec.role || 'accountant',
+          mustChangePasscode: userMustChange
+        };
+      } else {
+        // Check Supabase users table directly
+        const { data: dbUsers } = await supabase.from('users').select('*').eq('email', cleanEmail).limit(1);
+        if (dbUsers && dbUsers[0]) {
+          const dbU = dbUsers[0];
+          // Default temporary passcode is 1234 if not in map
+          expectedHash = await hashPasscode('1234');
+          userMustChange = true;
+          matchedUser = {
+            id: dbU.id,
+            full_name: dbU.full_name || 'مستخدم النظام',
+            email: cleanEmail,
+            role: dbU.role || 'accountant',
+            mustChangePasscode: true
+          };
+        }
+      }
+    }
+
+    if (!matchedUser || !expectedHash) {
       const updatedRate = recordFailedLoginAttempt();
       setRateLimitInfo(updatedRate);
       return { 
@@ -147,8 +246,8 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // Verify Passcode Hash (SHA-256)
-    const isValidPass = await verifyPasscode(passcodeInput, securityConfig.passcodeHash);
+    // Verify Passcode Hash
+    const isValidPass = await verifyPasscode(passcodeInput, expectedHash);
     if (!isValidPass) {
       const updatedRate = recordFailedLoginAttempt();
       setRateLimitInfo(updatedRate);
@@ -158,33 +257,250 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    // Success - reset attempts & create session
+    // Successful login
     resetLoginAttempts();
     setRateLimitInfo({ allowed: true, remaining: 5 });
 
     const sessionUser = {
-      id: 'owner-admin',
-      full_name: 'صاحب المنشأة / الإدارة',
-      email: cleanEmail,
-      role: 'admin',
+      ...matchedUser,
+      mustChangePasscode: userMustChange,
       loginTime: Date.now()
     };
 
     setUser(sessionUser);
     setIsAuthenticated(true);
     setIsLocked(false);
+    setMustChangePasscode(userMustChange);
     lastActivityRef.current = Date.now();
     localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(sessionUser));
+
+    return { success: true, mustChangePasscode: userMustChange };
+  };
+
+  /**
+   * Complete Mandatory Passcode Change (First Login)
+   */
+  const completeMandatoryPasscodeChange = async (newPasscode) => {
+    if (!user || !user.email) return { success: false, message: 'لا توجد جلسة مستخدم نشطة' };
+
+    const newHash = await hashPasscode(newPasscode);
+    const cleanEmail = user.email.toLowerCase();
+
+    // If owner
+    if (cleanEmail === (securityConfig.ownerEmail || '').toLowerCase() || cleanEmail === 'admin@qemat-alreef.com') {
+      const updated = { ...securityConfig, passcodeHash: newHash };
+      setSecurityConfig(updated);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(updated));
+    } else {
+      // If staff user
+      const usersSecMap = await getUsersSecurityMap();
+      usersSecMap[cleanEmail] = {
+        ...(usersSecMap[cleanEmail] || {}),
+        full_name: user.full_name,
+        email: cleanEmail,
+        role: user.role,
+        passcodeHash: newHash,
+        mustChangePasscode: false,
+        updated_at: new Date().toISOString()
+      };
+      await saveUsersSecurityMap(usersSecMap);
+    }
+
+    const updatedSession = { ...user, mustChangePasscode: false };
+    setUser(updatedSession);
+    setMustChangePasscode(false);
+    localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(updatedSession));
 
     return { success: true };
   };
 
   /**
-   * Unlock Inactivity Lock Screen
+   * Self-Service Change Passcode (for any logged-in user)
+   */
+  const changeUserPasscode = async ({ currentPasscode, newPasscode }) => {
+    if (!user || !user.email) {
+      return { success: false, message: 'لا توجد جلسة مستخدم نشطة' };
+    }
+
+    const cleanEmail = user.email.toLowerCase();
+    const ownerEmail = (securityConfig.ownerEmail || DEFAULT_OWNER_EMAIL).toLowerCase();
+    const isOwner = cleanEmail === ownerEmail || cleanEmail === 'admin@qemat-alreef.com';
+
+    let targetHash = securityConfig.passcodeHash;
+    if (!isOwner) {
+      const usersSecMap = await getUsersSecurityMap();
+      if (usersSecMap[cleanEmail]?.passcodeHash) {
+        targetHash = usersSecMap[cleanEmail].passcodeHash;
+      } else {
+        targetHash = await hashPasscode('1234');
+      }
+    }
+
+    // Verify current passcode
+    const isCurrentValid = await verifyPasscode(currentPasscode, targetHash);
+    if (!isCurrentValid) {
+      return { success: false, message: 'رمز المرور الحالي غير صحيح.' };
+    }
+
+    if (!newPasscode || newPasscode.trim().length < 4) {
+      return { success: false, message: 'رمز المرور الجديد يجب ألا يقل عن 4 أرقام/أحرف.' };
+    }
+
+    const newHash = await hashPasscode(newPasscode.trim());
+
+    if (isOwner) {
+      const updated = { ...securityConfig, passcodeHash: newHash };
+      setSecurityConfig(updated);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(updated));
+    } else {
+      const usersSecMap = await getUsersSecurityMap();
+      usersSecMap[cleanEmail] = {
+        ...(usersSecMap[cleanEmail] || {}),
+        full_name: user.full_name,
+        email: cleanEmail,
+        role: user.role,
+        passcodeHash: newHash,
+        mustChangePasscode: false,
+        updated_at: new Date().toISOString()
+      };
+      await saveUsersSecurityMap(usersSecMap);
+    }
+
+    return { success: true, message: 'تم تغيير رمز المرور السري بنجاح.' };
+  };
+
+  /**
+   * Register a New User with Temporary Passcode
+   */
+  const registerNewUser = async ({ email, full_name, role, tempPasscode, mustChange = true }) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) throw new Error('البريد الإلكتروني مطلوب');
+
+    const tempCode = (tempPasscode || '1234').trim();
+    if (tempCode.length < 4) {
+      throw new Error('رمز المرور المؤقت يجب أن يتكون من 4 أرقام/أحرف على الأقل');
+    }
+    const hashed = await hashPasscode(tempCode);
+
+    // 1. Try to Insert into Supabase users table
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([{
+        email: cleanEmail,
+        full_name: full_name || 'مستخدم جديد',
+        role: role || 'accountant',
+        created_at: new Date().toISOString(),
+        created_date: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    let resolvedId = null;
+
+    if (error) {
+      // Check if user already exists -> update instead
+      if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        const { data: updatedUser, error: updateErr } = await supabase
+          .from('users')
+          .update({
+            full_name: full_name || 'مستخدم جديد',
+            role: role || 'accountant'
+          })
+          .eq('email', cleanEmail)
+          .select()
+          .single();
+
+        if (updateErr) {
+          throw new Error('هذا البريد مسجل مسبقاً وتوجد مشكلة في تحديثه: ' + updateErr.message);
+        }
+        resolvedId = updatedUser?.id;
+      } else {
+        throw new Error(error.message || 'فشل إضافة المستخدم في قاعدة البيانات');
+      }
+    } else {
+      resolvedId = newUser?.id;
+    }
+
+    // 2. Save credentials and temporary status to security map
+    const usersSecMap = await getUsersSecurityMap();
+    usersSecMap[cleanEmail] = {
+      id: resolvedId || `user-${Date.now()}`,
+      email: cleanEmail,
+      full_name: full_name || 'مستخدم جديد',
+      role: role || 'accountant',
+      passcodeHash: hashed,
+      mustChangePasscode: Boolean(mustChange),
+      updated_at: new Date().toISOString()
+    };
+    await saveUsersSecurityMap(usersSecMap);
+
+    return { 
+      success: true, 
+      user: { id: resolvedId, email: cleanEmail, full_name, role }, 
+      tempPasscode: tempCode 
+    };
+  };
+
+  /**
+   * Reset User Passcode (Admin action)
+   */
+  const resetUserPasscode = async (userEmail, tempPasscode = '1234') => {
+    const cleanEmail = (userEmail || '').trim().toLowerCase();
+    const tempCode = (tempPasscode || '1234').trim();
+    const hashed = await hashPasscode(tempCode);
+
+    const usersSecMap = await getUsersSecurityMap();
+    if (usersSecMap[cleanEmail]) {
+      usersSecMap[cleanEmail].passcodeHash = hashed;
+      usersSecMap[cleanEmail].mustChangePasscode = true;
+      usersSecMap[cleanEmail].updated_at = new Date().toISOString();
+    } else {
+      usersSecMap[cleanEmail] = {
+        email: cleanEmail,
+        passcodeHash: hashed,
+        mustChangePasscode: true,
+        updated_at: new Date().toISOString()
+      };
+    }
+    await saveUsersSecurityMap(usersSecMap);
+    return { success: true, tempPasscode: tempCode };
+  };
+
+  /**
+   * Delete a User
+   */
+  const deleteUser = async (userId, userEmail) => {
+    if (userId) {
+      await supabase.from('users').delete().eq('id', userId);
+    }
+    if (userEmail) {
+      const cleanEmail = userEmail.trim().toLowerCase();
+      const usersSecMap = await getUsersSecurityMap();
+      delete usersSecMap[cleanEmail];
+      await saveUsersSecurityMap(usersSecMap);
+    }
+    return true;
+  };
+
+  /**
+   * Unlock Session
    */
   const unlockSession = async (passcodeInput) => {
-    const isValidPass = await verifyPasscode(passcodeInput, securityConfig.passcodeHash);
-    if (!isValidPass) {
+    if (!user) return { success: false, message: 'لا توجد جلسة نشطة' };
+
+    const cleanEmail = user.email.toLowerCase();
+    const ownerEmail = (securityConfig.ownerEmail || DEFAULT_OWNER_EMAIL).toLowerCase();
+
+    let targetHash = securityConfig.passcodeHash;
+    if (cleanEmail !== ownerEmail) {
+      const usersSecMap = await getUsersSecurityMap();
+      if (usersSecMap[cleanEmail]?.passcodeHash) {
+        targetHash = usersSecMap[cleanEmail].passcodeHash;
+      }
+    }
+
+    const isValid = await verifyPasscode(passcodeInput, targetHash);
+    if (!isValid) {
       return { success: false, message: 'رمز المرور غير صحيح.' };
     }
 
@@ -194,10 +510,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Change Secret Passcode & Email in Settings
+   * Update Owner Security Settings
    */
   const updateSecuritySettings = async ({ currentPasscode, newEmail, newPasscode, newTimeout }) => {
-    // Verify current passcode first
     const isValid = await verifyPasscode(currentPasscode, securityConfig.passcodeHash);
     if (!isValid) {
       return { success: false, message: 'رمز المرور الحالي غير صحيح.' };
@@ -231,6 +546,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     setIsLocked(false);
+    setMustChangePasscode(false);
     if (forceReload) {
       window.location.reload();
     }
@@ -241,11 +557,18 @@ export const AuthProvider = ({ children }) => {
       user,
       isAuthenticated,
       isLocked,
+      mustChangePasscode,
       isLoadingAuth,
       rateLimitInfo,
       securityConfig,
       loginWithCredentials,
       unlockSession,
+      completeMandatoryPasscodeChange,
+      changeUserPasscode,
+      registerNewUser,
+      resetUserPasscode,
+      deleteUser,
+      getUsersSecurityMap,
       updateSecuritySettings,
       logout,
       lockSessionNow: () => setIsLocked(true)

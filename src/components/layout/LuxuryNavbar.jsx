@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { 
-  Plus, CheckCircle2, Sparkles, CreditCard, Receipt, CalendarClock, ShieldCheck
+  Plus, CheckCircle2, Sparkles, CreditCard, Receipt, CalendarClock, ShieldCheck,
+  User, Lock, LogOut, KeyRound, ChevronDown, ShieldAlert
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -11,9 +12,21 @@ import { gregorianToHijri } from '@/lib/hijri';
 import ThemeToggle from '@/components/shared/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/lib/AuthContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import ChangePasswordModal from '@/components/auth/ChangePasswordModal';
 
 export default function LuxuryNavbar() {
   const navigate = useNavigate();
+  const { user, logout, lockSessionNow } = useAuth();
+  const [showChangePassModal, setShowChangePassModal] = useState(false);
 
   const { data: settingsList = [] } = useQuery({
     queryKey: ['hallSettings'],
@@ -26,6 +39,8 @@ export default function LuxuryNavbar() {
   const formattedGreg = format(new Date(), 'EEEE، dd MMMM yyyy', { locale: ar });
 
   const logoSrc = hallSettings.logo_url || './logo-gold.jpg';
+
+  const isUserAdmin = user?.role === 'admin';
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-card/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-sm transition-colors">
@@ -73,7 +88,7 @@ export default function LuxuryNavbar() {
             </div>
           </div>
 
-          {/* Left Actions: Quick Actions + Theme */}
+          {/* Left Actions: Quick Actions + User Menu + Theme */}
           <div className="flex items-center gap-2 sm:gap-2.5">
             
             {/* Quick Actions (Desktop) */}
@@ -106,6 +121,77 @@ export default function LuxuryNavbar() {
               <Plus className="w-4 h-4 ml-1 stroke-[3]" /> حجز جديد
             </Button>
 
+            {/* User Profile & Security Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl bg-muted/60 hover:bg-muted border border-border/70 transition-colors">
+                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center text-xs font-black shadow-sm ${
+                    isUserAdmin 
+                      ? 'bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950' 
+                      : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white'
+                  }`}>
+                    {user?.full_name ? user.full_name.charAt(0) : 'U'}
+                  </div>
+                  <div className="hidden sm:block text-right">
+                    <div className="text-xs font-black text-foreground truncate max-w-[100px]">
+                      {user?.full_name || 'مستخدم النظام'}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-semibold">
+                      {isUserAdmin ? 'مدير نظام 👑' : 'محاسب مالي 💼'}
+                    </div>
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden sm:block" />
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="w-60 rounded-3xl p-2 font-cairo shadow-2xl bg-card border-border/80">
+                <DropdownMenuLabel className="p-3 text-right">
+                  <div className="text-xs font-black text-foreground">{user?.full_name || 'المستخدم'}</div>
+                  <div className="text-[11px] text-muted-foreground font-mono truncate">{user?.email}</div>
+                  <div className="mt-2">
+                    <Badge variant="outline" className={`text-[10px] font-bold ${
+                      isUserAdmin 
+                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30' 
+                        : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                    }`}>
+                      {isUserAdmin ? 'صلاحية كاملة (مدير نظام 👑)' : 'صلاحية تشغيلية (محاسب مالي 💼)'}
+                    </Badge>
+                  </div>
+                </DropdownMenuLabel>
+
+                <DropdownMenuSeparator />
+
+                {/* Change Password */}
+                <DropdownMenuItem 
+                  onClick={() => setShowChangePassModal(true)}
+                  className="cursor-pointer gap-2 p-2.5 rounded-xl text-xs font-bold text-foreground focus:bg-amber-500/10 focus:text-amber-600"
+                >
+                  <KeyRound className="w-4 h-4 text-amber-500" />
+                  <span>تغيير رمز المرور الخاص بي</span>
+                </DropdownMenuItem>
+
+                {/* Lock Screen */}
+                <DropdownMenuItem 
+                  onClick={() => lockSessionNow()}
+                  className="cursor-pointer gap-2 p-2.5 rounded-xl text-xs font-bold text-foreground focus:bg-muted"
+                >
+                  <Lock className="w-4 h-4 text-slate-500" />
+                  <span>قفل الشاشة فوراً</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                {/* Logout */}
+                <DropdownMenuItem 
+                  onClick={() => logout(true)}
+                  className="cursor-pointer gap-2 p-2.5 rounded-xl text-xs font-bold text-rose-500 focus:bg-rose-500/10 focus:text-rose-600"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>تسجيل الخروج</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Theme Switcher */}
             <ThemeToggle className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-muted/60 hover:bg-muted" />
 
@@ -113,6 +199,12 @@ export default function LuxuryNavbar() {
 
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal 
+        open={showChangePassModal} 
+        onOpenChange={setShowChangePassModal} 
+      />
     </header>
   );
 }

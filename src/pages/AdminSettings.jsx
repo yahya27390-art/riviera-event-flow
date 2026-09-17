@@ -29,7 +29,13 @@ import SecuritySettingsTab from '@/components/admin/SecuritySettingsTab';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
-  const { user: currentUser } = useAuth();
+  const { 
+    user: currentUser, 
+    registerNewUser, 
+    resetUserPasscode, 
+    deleteUser: authDeleteUser,
+    getUsersSecurityMap 
+  } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -114,23 +120,19 @@ export default function AdminSettings() {
     }
   });
 
-  const updateUserRole = useMutation({
-    mutationFn: ({ id, role }) => base44.entities.User.update(id, { role }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); toast.success('تم تحديث الصلاحية'); },
-    onError: () => toast.error('فشل تحديث الصلاحية'),
-  });
+  const [securityMap, setSecurityMap] = useState({});
+  const [resettingEmail, setResettingEmail] = useState(null);
 
-  const deleteUser = useMutation({
-    mutationFn: (id) => base44.entities.User.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('تم حذف المستخدم');
-      setDeleteUserId(null);
-    },
-    onError: () => {
-      toast.error('فشل حذف المستخدم');
-      setDeleteUserId(null);
-    },
+  useEffect(() => {
+    getUsersSecurityMap().then(map => setSecurityMap(map || {}));
+  }, [users]);
+
+  const [userForm, setUserForm] = useState({
+    full_name: '',
+    email: '',
+    role: 'accountant',
+    tempPasscode: '1234',
+    mustChange: true,
   });
 
   const handleLogoUpload = (e) => {
@@ -157,19 +159,70 @@ export default function AdminSettings() {
 
   const handleInvite = async (e) => {
     e.preventDefault();
-    if (!inviteEmail.trim()) return;
+    const cleanEmail = userForm.email.trim();
+    if (!cleanEmail) {
+      toast.error('يرجى إدخال البريد الإلكتروني للمستخدم');
+      return;
+    }
+
+    if (cleanEmail === 'sqq00100@gmail.com') {
+      toast.error('هذا البريد هو الحساب الرئيسي للمالك (Super Admin). يمكنك تعديل كلمة مروره من تبويب الأمان والحماية.');
+      return;
+    }
+
     setInviting(true);
     try {
-      await base44.users.inviteUser(inviteEmail.trim(), inviteRole);
-      toast.success(`تم إرسال دعوة إلى ${inviteEmail}`);
+      const res = await registerNewUser({
+        email: cleanEmail,
+        full_name: userForm.full_name.trim() || 'مستخدم جديد',
+        role: userForm.role,
+        tempPasscode: userForm.tempPasscode.trim() || '1234',
+        mustChange: userForm.mustChange
+      });
+
+      toast.success(`تمت إضافة المستخدم بنجاح! 🎉\nالدور: ${userForm.role === 'admin' ? 'مدير نظام كامل 👑' : 'محاسب مالي 💼'}\nرمز المرور المؤقت: ${res.tempPasscode} 🔐`, {
+        duration: 7000
+      });
       setShowInviteDialog(false);
-      setInviteEmail('');
-      setInviteRole('accountant');
+      setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: '1234', mustChange: true });
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      const updatedMap = await getUsersSecurityMap();
+      setSecurityMap(updatedMap || {});
     } catch (err) {
-      toast.error('فشل إرسال الدعوة');
+      toast.error(err.message || 'فشل إضافة المستخدم');
+    } finally {
+      setInviting(false);
     }
-    setInviting(false);
+  };
+
+  const handleResetUserPasscode = async (userEmail) => {
+    if (!userEmail) return;
+    setResettingEmail(userEmail);
+    try {
+      const res = await resetUserPasscode(userEmail, '1234');
+      toast.success(`تمت إعادة تعيين رمز المرور للمستخدم (${userEmail}) إلى الرمز المؤقت: ${res.tempPasscode} 🔑 وسيُطلب منه تغييره عند تسجيل الدخول.`);
+      const updatedMap = await getUsersSecurityMap();
+      setSecurityMap(updatedMap || {});
+    } catch (err) {
+      toast.error('فشل إعادة تعيين رمز المرور: ' + err.message);
+    } finally {
+      setResettingEmail(null);
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!deleteUserId) return;
+    const target = users.find(u => u.id === deleteUserId);
+    try {
+      await authDeleteUser(deleteUserId, target?.email);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      const updatedMap = await getUsersSecurityMap();
+      setSecurityMap(updatedMap || {});
+      setDeleteUserId(null);
+      toast.success('تم حذف المستخدم وحساب الدخول بنجاح');
+    } catch (err) {
+      toast.error('فشل حذف المستخدم: ' + err.message);
+    }
   };
 
   return (
@@ -564,49 +617,127 @@ export default function AdminSettings() {
                   <Users className="w-5 h-5 text-purple-600" />
                   فريق العمل والمحاسبين والصلاحيات
                 </CardTitle>
-                <CardDescription className="text-xs">إدارة حسابات النظام وتعيين صلاحيات المدراء والمحاسبين</CardDescription>
+                <CardDescription className="text-xs">إدارة حسابات النظام وتعيين صلاحيات المدراء والمحاسبين وتوزيع رموز الدخول</CardDescription>
               </div>
-              <Button onClick={() => setShowInviteDialog(true)} size="sm" className="rounded-xl h-9 px-4 text-xs font-bold gap-1 bg-primary text-primary-foreground">
-                <Plus className="w-4 h-4" /> إضافة مستخدم جديد
+              <Button 
+                onClick={() => {
+                  setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: '1234', mustChange: true });
+                  setShowInviteDialog(true);
+                }} 
+                size="sm" 
+                className="rounded-2xl h-10 px-4 text-xs font-bold gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20"
+              >
+                <Plus className="w-4 h-4" /> إضافة مستخدم / صلاحية جديدة
               </Button>
             </CardHeader>
-            <CardContent className="p-5">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">المستخدم</TableHead>
-                    <TableHead className="text-right">البريد الإلكتروني</TableHead>
-                    <TableHead className="text-right">الدور والصلاحية</TableHead>
-                    <TableHead className="text-right">إجراءات</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.length === 0 ? (
+            <CardContent className="p-5 space-y-4">
+              
+              {/* Owner Super Admin Banner */}
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-500 font-black">
+                    👑
+                  </div>
+                  <div>
+                    <div className="font-black text-foreground text-sm flex items-center gap-2">
+                      صاحب المنشأة / المالك الرئيسي (Super Admin)
+                      <Badge className="bg-amber-500 text-slate-950 text-[10px] font-black">حساب الإدارة الأعلى</Badge>
+                    </div>
+                    <div className="text-muted-foreground font-mono mt-0.5">sqq00100@gmail.com</div>
+                  </div>
+                </div>
+                <div className="text-muted-foreground text-[11px] font-medium bg-card/60 px-3 py-1.5 rounded-xl border border-border/60">
+                  يتم تعديل كلمة مرور المالك من تبويب (الأمان والحماية)
+                </div>
+              </div>
+
+              {/* Users Table */}
+              <div className="rounded-2xl border border-border/70 overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/40">
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-xs">
-                        لا يوجد مستخدمون إضافيون مسجلون
-                      </TableCell>
+                      <TableHead className="text-right text-xs font-black">المستخدم والموظف</TableHead>
+                      <TableHead className="text-right text-xs font-black">البريد الإلكتروني</TableHead>
+                      <TableHead className="text-right text-xs font-black">الدور والصلاحية</TableHead>
+                      <TableHead className="text-right text-xs font-black">حالة كلمة المرور</TableHead>
+                      <TableHead className="text-center text-xs font-black">إجراءات الأمان</TableHead>
                     </TableRow>
-                  ) : (
-                    users.map(u => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-bold text-xs">{u.full_name || '—'}</TableCell>
-                        <TableCell className="font-mono text-xs">{u.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={u.role === 'admin' ? 'bg-amber-500/10 text-amber-700 border-amber-500/30' : 'bg-muted'}>
-                            {u.role === 'admin' ? 'مدير نظام 👑' : 'محاسب مالي 💼'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteUserId(u.id)} className="h-8 w-8 text-rose-500">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+                  </TableHeader>
+                  <TableBody>
+                    {users.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground text-xs font-semibold">
+                          لا يوجد مستخدمون إضافيون مسجلون حالياً. يمكنك إضافة محاسبين أو مدراء بالنقر على "إضافة مستخدم جديد".
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      users.map(u => {
+                        const secInfo = securityMap[u.email?.toLowerCase()] || {};
+                        const isTemp = secInfo.mustChangePasscode;
+                        return (
+                          <TableRow key={u.id} className="hover:bg-muted/30">
+                            <TableCell className="font-bold text-xs">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center font-bold text-xs text-foreground">
+                                  {u.full_name ? u.full_name.charAt(0) : 'U'}
+                                </div>
+                                <span>{u.full_name || 'مستخدم النظام'}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">{u.email}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={`text-xs font-bold ${
+                                u.role === 'admin' 
+                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30' 
+                                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                              }`}>
+                                {u.role === 'admin' ? 'مدير نظام كامل 👑' : 'محاسب مالي 💼'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {isTemp ? (
+                                <Badge variant="outline" className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 text-[11px] font-semibold gap-1">
+                                  رمز مؤقت (سيتغير عند الدخول) ⏳
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[11px] font-semibold gap-1">
+                                  رمز دائم نشط 🔒
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => handleResetUserPasscode(u.email)}
+                                  disabled={resettingEmail === u.email}
+                                  title="إعادة تعيين رمز المرور المؤقت إلى 1234"
+                                  className="h-8 px-2.5 rounded-xl text-[11px] font-bold border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400 gap-1"
+                                >
+                                  <KeyRound className="w-3.5 h-3.5" />
+                                  <span>{resettingEmail === u.email ? 'جاري...' : 'إعادة تعيين رمز مؤقت'}</span>
+                                </Button>
+                                
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => setDeleteUserId(u.id)} 
+                                  title="حذف المستخدم"
+                                  className="h-8 w-8 rounded-xl text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
             </CardContent>
           </Card>
         </TabsContent>
@@ -623,43 +754,151 @@ export default function AdminSettings() {
 
       </Tabs>
 
-      {/* Invite User Dialog */}
+      {/* Invite/Add User Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-5">
-          <DialogHeader>
-            <DialogTitle className="text-base font-black">إضافة مستخدم / محاسب جديد</DialogTitle>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border-border/80 shadow-2xl font-cairo">
+          <DialogHeader className="text-right space-y-2 pb-2 border-b border-border/50">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-600 mb-1">
+              <Users className="w-6 h-6" />
+            </div>
+            <DialogTitle className="text-lg font-black text-foreground">إضافة مستخدم / صلاحية جديدة</DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              أدخل بيانات الموظف، حدد الصلاحية، وعين له رمز مرور مؤقت للدخول به لأول مرة.
+            </p>
           </DialogHeader>
-          <form onSubmit={handleInvite} className="space-y-4 pt-2">
+
+          <form onSubmit={handleInvite} className="space-y-4 pt-3">
+            {/* Full Name */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-black">البريد الإلكتروني *</Label>
+              <Label className="text-xs font-bold text-foreground">الاسم الكامل للمستخدم / الموظف *</Label>
               <Input
-                type="email"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                placeholder="accountant@qemat-alreef.com"
+                type="text"
+                value={userForm.full_name}
+                onChange={e => setUserForm(prev => ({ ...prev, full_name: e.target.value }))}
+                placeholder="مثال: عبدالمجيد المحاسب"
                 required
-                className="rounded-xl"
+                className="h-11 rounded-2xl bg-muted/40 text-sm"
               />
             </div>
+
+            {/* Email */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-black">الدور والصلاحية</Label>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="accountant">محاسب مالي (حجوزات، سندات، مصروفات)</SelectItem>
-                  <SelectItem value="admin">مدير نظام كامل (كافة الصلاحيات والإعدادات)</SelectItem>
+              <Label className="text-xs font-bold text-foreground">البريد الإلكتروني للدخول *</Label>
+              <Input
+                type="email"
+                value={userForm.email}
+                onChange={e => setUserForm(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="accountant@qemat-alreef.com"
+                required
+                className="h-11 rounded-2xl bg-muted/40 font-mono text-sm"
+              />
+            </div>
+
+            {/* Role Selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">الدور والصلاحية في النظام *</Label>
+              <Select 
+                value={userForm.role} 
+                onValueChange={val => setUserForm(prev => ({ ...prev, role: val }))}
+              >
+                <SelectTrigger className="h-11 rounded-2xl bg-muted/40 text-xs font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl font-cairo">
+                  <SelectItem value="accountant" className="py-2.5">
+                    <div className="text-right">
+                      <div className="font-bold text-xs text-foreground">محاسب مالي 💼 (الصلاحية التشغيلية)</div>
+                      <div className="text-[11px] text-muted-foreground">حجوزات، سندات قبض وصرف، حركة خزينة وبنوك، تقارير، كشف حساب</div>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="admin" className="py-2.5">
+                    <div className="text-right">
+                      <div className="font-bold text-xs text-amber-600 dark:text-amber-400">مدير نظام كامل 👑 (كافة الصلاحيات والإعدادات)</div>
+                      <div className="text-[11px] text-muted-foreground">كافة صفحات المحاسبة + لوحة الإعدادات، الأسعار، الحسابات البنكية، والمستخدمين</div>
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <DialogFooter className="pt-3 border-t">
-              <Button type="button" variant="outline" onClick={() => setShowInviteDialog(false)} className="rounded-xl">إلغاء</Button>
-              <Button type="submit" disabled={inviting} className="rounded-xl font-bold bg-primary">
-                {inviting ? 'جاري الإرسال...' : 'إضافة المستخدم'}
+
+            {/* Temporary Passcode */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">رمز المرور المؤقت للدخول (PIN) *</Label>
+              <Input
+                type="text"
+                value={userForm.tempPasscode}
+                onChange={e => setUserForm(prev => ({ ...prev, tempPasscode: e.target.value }))}
+                placeholder="1234"
+                required
+                className="h-11 rounded-2xl bg-muted/40 font-mono font-bold text-sm tracking-widest text-center"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                ستعطي هذا الرمز للموظف للدخول به أول مرة (الافتراضي 1234).
+              </p>
+            </div>
+
+            {/* Must Change Passcode Checkbox */}
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="mustChangeCheckbox"
+                checked={userForm.mustChange}
+                onChange={e => setUserForm(prev => ({ ...prev, mustChange: e.target.checked }))}
+                className="mt-1 w-4 h-4 rounded text-amber-500 accent-amber-500"
+              />
+              <label htmlFor="mustChangeCheckbox" className="text-xs text-foreground font-semibold cursor-pointer select-none">
+                <span className="font-bold block text-amber-700 dark:text-amber-400">إلزام المستخدم بتعيين رمز مرور سري دائم فور أول دخول</span>
+                <span className="text-[11px] text-muted-foreground block mt-0.5">
+                  بمجرد تسجيل الدخول بالرمز المؤقت، ستظهر له نافذة إجبارية لكتابة رمزه الخاص ولن يتمكن من استخدام النظام بدونها.
+                </span>
+              </label>
+            </div>
+
+            <DialogFooter className="pt-3 border-t border-border/50 gap-2 sm:gap-0">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setShowInviteDialog(false)} 
+                className="rounded-2xl text-xs font-bold"
+              >
+                إلغاء
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={inviting || !userForm.email.trim()} 
+                className="rounded-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs gap-1.5 shadow-md shadow-purple-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                {inviting ? 'جاري الإضافة والتشفير...' : 'إضافة وتفعيل المستخدم'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation Alert */}
+      <AlertDialog open={Boolean(deleteUserId)} onOpenChange={(open) => !open && setDeleteUserId(null)}>
+        <AlertDialogContent className="rounded-3xl p-6 font-cairo bg-card border-border/80 shadow-2xl">
+          <AlertDialogHeader className="text-right space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-1">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-black text-foreground">تأكيد حذف المستخدم</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              هل أنت متأكد من رغبتك في حذف هذا الحساب نهائياً؟ سيتم إلغاء صلاحية دخوله للنظام ولن يتمكن من تسجيل الدخول بعد الآن.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-border/50">
+            <AlertDialogCancel className="rounded-2xl text-xs font-bold">إلغاء</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDeleteUser}
+              className="rounded-2xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20"
+            >
+              تأكيد الحذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

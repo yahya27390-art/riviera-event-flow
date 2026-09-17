@@ -23,9 +23,10 @@ import PendingPayments from '@/pages/PendingPayments';
 
 import Login from '@/pages/Login';
 import LockScreen from '@/components/auth/LockScreen';
+import ForceChangePasscodeModal from '@/components/auth/ForceChangePasscodeModal';
 
 const AuthenticatedApp = () => {
-  const { isAuthenticated, isLocked, isLoadingAuth } = useAuth();
+  const { isAuthenticated, isLocked, mustChangePasscode, isLoadingAuth } = useAuth();
 
   if (isLoadingAuth) {
     return (
@@ -45,8 +46,11 @@ const AuthenticatedApp = () => {
 
   return (
     <>
+      {/* Mandatory First-Login Password Change Modal */}
+      {mustChangePasscode && <ForceChangePasscodeModal />}
+
       {/* Inactivity Auto-Lock Overlay */}
-      {isLocked && <LockScreen />}
+      {isLocked && !mustChangePasscode && <LockScreen />}
 
       <Routes>
         <Route element={<AppLayout />}>
