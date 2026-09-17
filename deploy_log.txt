@@ -1,16 +1,32 @@
 --- Hostinger Deployment Diagnostic ---
-Server: 82.198.228.36
-
-Username defined: true (Length: 53)
+Cleaned Server: "82.198.228.36" (Length: 13)
+Username defined: true (Length: 52)
 Password defined: true (Length: 13)
 
-🔄 Attempting connection via Plain FTP (port 21)...
-> QUIT
-⚠️ Connection via Plain FTP (port 21) failed: getaddrinfo ENOTFOUND 82.198.228.36
- (control socket)
+🔄 Attempting connection via Plain FTP (port 21) to 82.198.228.36:21...
+Connected to 82.198.228.36:21 (No encryption)
+< 220 FTP Server ready.
 
-🔄 Attempting connection via Explicit FTPS (port 21)...
+> OPTS UTF8 ON
+< 200 UTF8 set to on
+
+Login security: No encryption
+> USER u602943255.white-chimpanzee-265083.hostingersite.com
+< 331 Password required for u602943255.white-chimpanzee-265083.hostingersite.com
+
+> PASS ###
+< 530 Login incorrect.
+
+⚠️ Connection via Plain FTP (port 21) failed: 530 Login incorrect.
 > QUIT
-⚠️ Connection via Explicit FTPS (port 21) failed: getaddrinfo ENOTFOUND 82.198.228.36
- (control socket)
+
+🔄 Attempting connection via Explicit FTPS (port 21) to 82.198.228.36:21...
+Connected to 82.198.228.36:21 (No encryption)
+< 220 FTP Server ready.
+
+> AUTH TLS
+< 234 AUTH TLS successful
+
+⚠️ Connection via Explicit FTPS (port 21) failed: Hostname/IP does not match certificate's altnames: IP: 82.198.228.36 is not in the cert's list: 
+> QUIT
 ❌ All connection modes failed! Please verify FTP Server, Username and Password.
