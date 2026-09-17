@@ -46,17 +46,12 @@ export default function Sidebar() {
       {/* Brand Header */}
       <div className="p-5 border-b border-sidebar-border/60">
         <div className="flex items-center gap-3">
-          {hallSettings.logo_url ? (
-            <img 
-              src={hallSettings.logo_url} 
-              alt="Logo" 
-              className="w-11 h-11 rounded-xl object-contain bg-white p-1 border border-sidebar-border shadow-md"
-            />
-          ) : (
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 via-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-slate-900 font-bold">
-              <Crown className="w-6 h-6 text-slate-950" />
-            </div>
-          )}
+          <img 
+            src={hallSettings.logo_url || '/logo.png'} 
+            alt="شعار قمة الريف" 
+            className="w-11 h-11 rounded-xl object-contain bg-white p-1 border border-sidebar-border shadow-md"
+            onError={(e) => { e.target.src = '/logo.png'; }}
+          />
           <div className="overflow-hidden">
             <h1 className="text-base font-extrabold text-sidebar-foreground truncate">
               {hallSettings.hall_name || 'قاعة قمة الريف'}
