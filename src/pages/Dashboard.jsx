@@ -150,7 +150,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 4 Animated KPI Cards */}
+      {/* 1. Interactive Bookings Calendar (Top Priority for Venue Owner) */}
+      <InteractiveCalendar bookings={activeBookings} />
+
+      {/* 2. Key Performance Indicators (KPIs) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Net Profit */}
         <Card className="glass-card luxury-card-hover border-emerald-500/20 relative overflow-hidden">
@@ -231,7 +234,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Liquidity Vault Overview */}
+      {/* 3. Liquidity Vault Overview */}
       <Card className="glass-card border-border/80">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -293,9 +296,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Interactive Calendar Component */}
-      <InteractiveCalendar bookings={activeBookings} />
 
       {/* Chart + Upcoming Bookings */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

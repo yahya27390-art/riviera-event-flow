@@ -15,12 +15,8 @@ import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { buildBookingEditReceipt, buildBookingEditReceiptContent } from './BookingEditReceipt';
-
-const sectionBadge = (section) => {
-  if (section === 'رجال فقط') return 'bg-blue-100 text-blue-700 border-blue-200';
-  if (section === 'نساء فقط') return 'bg-pink-100 text-pink-700 border-pink-200';
-  return 'bg-purple-100 text-purple-700 border-purple-200';
-};
+import { getSectionBadge } from './InteractiveCalendar';
+import { cn } from '@/lib/utils';
 
 const statusBadge = (status) => {
   if (status === 'مؤكد') return 'bg-green-100 text-green-700 border-green-200';
@@ -207,8 +203,15 @@ export default function BookingActionCard({ booking }) {
 
       {/* Section + type */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Badge variant="outline" className={sectionBadge(booking.hall_section)}>{booking.hall_section}</Badge>
-        <span className="text-xs text-muted-foreground">{booking.event_type}</span>
+        {(() => {
+          const sec = getSectionBadge(booking.hall_section);
+          return (
+            <Badge className={cn("text-xs px-2.5 py-0.5 rounded-xl border shadow-2xs", sec.badgeClass)}>
+              {sec.label}
+            </Badge>
+          );
+        })()}
+        <span className="text-xs text-muted-foreground font-semibold">{booking.event_type}</span>
         {booking.voucher_number && <span className="text-xs text-muted-foreground" dir="ltr">#{booking.voucher_number}</span>}
       </div>
 
