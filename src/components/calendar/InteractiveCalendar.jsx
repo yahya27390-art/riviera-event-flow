@@ -3,7 +3,7 @@ import {
   Calendar as CalendarIcon, ChevronRight, ChevronLeft, 
   Sparkles, CheckCircle2, Clock, Users, Plus, ArrowRight,
   Eye, CalendarCheck, Moon, Sun, LayoutGrid, List,
-  MessageSquare, Phone, MapPin, AlertCircle
+  MessageSquare, Phone, MapPin, AlertCircle, ShieldCheck, Crown
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,46 +19,58 @@ import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { cn } from '@/lib/utils';
 
 /**
- * Returns distinct styling and labels for hall sections:
- * - 👑 القاعة بالكامل (رجال ونساء)
- * - 🌸 قسم النساء فقط
- * - ☕ قسم الرجال فقط
+ * Returns distinct luxury styling and labels for hall sections:
+ * - 👑 رجال ونساء (القاعة بالكامل)
+ * - 👔 رجال فقط (قسم الرجال)
+ * - 👗 نساء فقط (قسم النساء)
  */
 export function getSectionBadge(section) {
   const s = (section || '').trim();
-  if (!s || s === 'رجال ونساء' || s.includes('كامل') || s === 'القسمين') {
+  if (!s || s === 'رجال ونساء' || s.includes('كامل') || s === 'القسمين' || s.includes('معاً')) {
     return {
       type: 'both',
       label: '👑 القاعة بالكامل (رجال ونساء)',
       shortLabel: '👑 رجال ونساء',
-      badgeClass: 'bg-amber-500/15 text-amber-900 dark:text-amber-300 border-amber-500/40 font-black',
+      tagText: 'رجال ونساء',
+      badgeClass: 'bg-amber-500/20 text-amber-950 dark:text-amber-200 border-amber-500/50 font-black',
+      pillClass: 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black border-amber-400',
       dotClass: 'bg-amber-500',
+      icon: '👑',
     };
   }
   if (s.includes('نساء')) {
     return {
       type: 'women',
-      label: '🌸 قسم النساء فقط',
-      shortLabel: '🌸 نساء فقط',
-      badgeClass: 'bg-pink-500/15 text-pink-900 dark:text-pink-300 border-pink-500/40 font-black',
+      label: '👗 قسم النساء فقط',
+      shortLabel: '👗 نساء فقط',
+      tagText: 'نساء فقط',
+      badgeClass: 'bg-pink-500/20 text-pink-950 dark:text-pink-200 border-pink-500/50 font-black',
+      pillClass: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black border-pink-400',
       dotClass: 'bg-pink-500',
+      icon: '👗',
     };
   }
   if (s.includes('رجال')) {
     return {
       type: 'men',
-      label: '☕ قسم الرجال فقط',
-      shortLabel: '☕ رجال فقط',
-      badgeClass: 'bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 border-emerald-500/40 font-black',
+      label: '👔 قسم الرجال فقط',
+      shortLabel: '👔 رجال فقط',
+      tagText: 'رجال فقط',
+      badgeClass: 'bg-emerald-600/20 text-emerald-950 dark:text-emerald-200 border-emerald-500/50 font-black',
+      pillClass: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black border-emerald-400',
       dotClass: 'bg-emerald-500',
+      icon: '👔',
     };
   }
   return {
     type: 'other',
     label: s,
     shortLabel: s,
-    badgeClass: 'bg-primary/15 text-primary border-primary/40 font-bold',
+    tagText: s,
+    badgeClass: 'bg-primary/20 text-primary border-primary/50 font-bold',
+    pillClass: 'bg-primary text-primary-foreground font-bold',
     dotClass: 'bg-primary',
+    icon: '✨',
   };
 }
 
@@ -93,8 +105,8 @@ export default function InteractiveCalendar({ bookings = [] }) {
   const [selectedDialogDate, setSelectedDialogDate] = useState(null);
 
   const todayMoment = moment();
-  const [hijriViewYear, setHijriViewYear] = useState(parseInt(todayMoment.format('iYYYY')));
-  const [hijriViewMonth, setHijriViewMonth] = useState(parseInt(todayMoment.format('iMM')));
+  const [hijriViewYear, setHijriViewYear] = useState(parseInt(todayMoment.format('iYYYY'), 10));
+  const [hijriViewMonth, setHijriViewMonth] = useState(parseInt(todayMoment.format('iMM'), 10));
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -150,8 +162,8 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
   const resetToToday = () => {
     setCalViewDate(new Date());
-    setHijriViewYear(parseInt(todayMoment.format('iYYYY')));
-    setHijriViewMonth(parseInt(todayMoment.format('iMM')));
+    setHijriViewYear(parseInt(todayMoment.format('iYYYY'), 10));
+    setHijriViewMonth(parseInt(todayMoment.format('iMM'), 10));
     setInlineSelectedDate(todayStr);
   };
 
@@ -189,7 +201,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
     return { daysCount, bookedDays, partialDays, availableDays };
   }, [calMode, hijriCalDays, calDays, hijriViewYear, hijriViewMonth, activeBookings]);
 
-  // Robust month bookings filter for Agenda/List view
+  // Month bookings for Agenda/List view
   const currentMonthBookings = useMemo(() => {
     return activeBookings.filter(b => {
       if (!b.event_date) return false;
@@ -217,7 +229,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
     }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
   }, [activeBookings, calMode, calViewDate, hijriViewYear, hijriViewMonth]);
 
-  // Handle cell click (iPhone inline inspector + double tap/click opens dialog)
+  // Handle cell click
   const handleCellClick = (gregorianDate) => {
     setInlineSelectedDate(gregorianDate);
   };
@@ -238,12 +250,12 @@ export default function InteractiveCalendar({ bookings = [] }) {
     const cleanPhone = b.customer_phone.replace(/\D/g, '');
     const fullPhone = cleanPhone.startsWith('966') ? cleanPhone : `966${cleanPhone.replace(/^0+/, '')}`;
     const text = encodeURIComponent(
-      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${b.customer_name}\nنود تذكيركم بموعد حجزكم في قاعة قمة الريف بتاريخ ${b.event_date_hijri || gregorianToHijri(b.event_date)} هـ (${b.event_date} م).\nالقسم المحجوز: ${b.hall_section || 'كامل القاعة'}\nالمبلغ المتبقي: ${formatCurrency(b.remaining_amount)}\nنسعد بخدمتكم دائماً!`
+      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${b.customer_name}\nنود تذكيركم بموعد حجزكم في قاعة قمة الريف بتاريخ ${b.event_date_hijri || gregorianToHijri(b.event_date)} هـ.\nالقسم المحجوز: ${b.hall_section || 'كامل القاعة'}\nالمبلغ المتبقي: ${formatCurrency(b.remaining_amount)}\nنسعد بخدمتكم دائماً!`
     );
     window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
   };
 
-  // Render a day cell in the calendar grid
+  // Render a day cell in the calendar grid with high-definition styling and prominent hall labels
   const renderDayCell = (dayNumber, dayBookings, isToday, gregorianDate, dayOfWeekName) => {
     const status = getDayStatus(dayBookings);
     const isWeekend = dayOfWeekName === 'الخميس' || dayOfWeekName === 'الجمعة';
@@ -251,25 +263,20 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
     let cellBg = 'bg-card hover:bg-muted/40 border-border/70';
     let ringStyle = '';
-    let statusDot = null;
 
     if (isSelected) {
-      ringStyle = 'ring-2.5 ring-amber-500 shadow-md shadow-amber-500/20 border-amber-500 bg-amber-500/10 dark:bg-amber-950/30';
+      ringStyle = 'ring-2.5 ring-amber-500 shadow-lg shadow-amber-500/25 border-amber-500 bg-amber-500/10 dark:bg-amber-950/30';
     } else if (isToday) {
-      ringStyle = 'ring-2 ring-emerald-500/80 border-emerald-500/50 bg-emerald-500/5';
+      ringStyle = 'ring-2 ring-emerald-500/90 border-emerald-500/60 bg-emerald-500/5';
     }
 
     if (status === 'full') {
-      cellBg = isSelected ? cellBg : 'bg-rose-500/10 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900 hover:bg-rose-500/15';
-      statusDot = <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" title="القاعة محجوزة بالكامل"></span>;
+      cellBg = isSelected ? cellBg : 'bg-rose-500/10 dark:bg-rose-950/25 border-rose-300 dark:border-rose-900/80 hover:bg-rose-500/15';
     } else if (status === 'partial') {
-      cellBg = isSelected ? cellBg : 'bg-amber-500/10 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900 hover:bg-amber-500/15';
-      statusDot = <span className="w-2 h-2 rounded-full bg-amber-500" title="حجز جزئي - قسم متاح"></span>;
+      cellBg = isSelected ? cellBg : 'bg-amber-500/10 dark:bg-amber-950/25 border-amber-300 dark:border-amber-900/80 hover:bg-amber-500/15';
     } else if (isWeekend && !isSelected) {
-      cellBg = 'bg-muted/20 hover:bg-muted/50 border-border/80';
+      cellBg = 'bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20';
     }
-
-    const gDay = gregorianDate ? parseInt(gregorianDate.split('-')[2], 10) : '';
 
     return (
       <button
@@ -278,42 +285,42 @@ export default function InteractiveCalendar({ bookings = [] }) {
         onClick={() => handleCellClick(gregorianDate)}
         onDoubleClick={() => handleOpenDialog(gregorianDate)}
         className={cn(
-          "group relative rounded-2xl p-1.5 sm:p-2.5 min-h-[72px] sm:min-h-[86px] flex flex-col justify-between text-right transition-all duration-200 cursor-pointer border shadow-2xs",
+          "group relative rounded-2xl p-1.5 sm:p-2.5 min-h-[82px] sm:min-h-[105px] flex flex-col justify-between text-right transition-all duration-200 cursor-pointer border shadow-xs select-none",
           cellBg, ringStyle,
           "hover:-translate-y-0.5 active:scale-[0.98]"
         )}
       >
-        {/* Top bar: Day number (Hijri Primary) + Gregorian secondary + badges */}
+        {/* Top bar: Crisp Hijri Day Number + Today Pill + Status Indicators */}
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className={cn(
-              "text-sm sm:text-base font-black tracking-tight",
+              "text-base sm:text-lg font-black tracking-tight font-sans leading-none",
               isToday ? "text-emerald-600 dark:text-emerald-400" : isSelected ? "text-amber-600 dark:text-amber-400" : "text-foreground"
             )}>
               {dayNumber}
             </span>
-            {calMode === 'hijri' && gregorianDate && (
-              <span className="text-[10px] text-muted-foreground font-mono opacity-70 mr-0.5">
-                ({gDay}م)
-              </span>
-            )}
             {isToday && (
-              <span className="text-[8.5px] px-1.5 py-0.2 rounded-full bg-emerald-600 text-white font-black">
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-black shadow-xs">
                 اليوم
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-1">
-            {statusDot}
-            {isWeekend && status === 'available' && (
-              <span className="text-[8.5px] text-muted-foreground font-medium hidden sm:inline-block">عطلة</span>
+            {status === 'full' && (
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/50 animate-pulse" title="القاعة محجوزة بالكامل" />
+            )}
+            {status === 'partial' && (
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/50" title="حجز جزئي - قسم متاح" />
+            )}
+            {status === 'available' && isWeekend && (
+              <span className="text-[9px] text-amber-600/80 dark:text-amber-400/80 font-bold hidden sm:inline-block">عطلة</span>
             )}
           </div>
         </div>
 
-        {/* Middle: Prominent Bookings with Section Tags */}
-        <div className="w-full mt-1 space-y-1">
+        {/* Middle: Prominent Booked Halls / Sections directly in the cell */}
+        <div className="w-full mt-1.5 space-y-1">
           {dayBookings.length > 0 ? (
             <>
               {dayBookings.slice(0, 2).map((b, idx) => {
@@ -322,26 +329,34 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   <div 
                     key={idx}
                     className={cn(
-                      "px-1 sm:px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] truncate border flex items-center justify-between gap-1 shadow-2xs",
+                      "w-full px-1.5 py-1 rounded-xl text-[9.5px] sm:text-[11px] font-black border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-1 shadow-2xs transition-all",
                       sec.badgeClass
                     )}
                   >
-                    <span className="truncate font-bold text-slate-900 dark:text-slate-100">{b.customer_name}</span>
-                    <span className="text-[8px] font-black opacity-90 hidden sm:inline-block flex-shrink-0">
-                      {sec.shortLabel}
+                    {/* Explicit Section Name */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <span className={cn("w-1.5 h-1.5 rounded-full", sec.dotClass)}></span>
+                      <span className="font-black text-[9px] sm:text-[10px] tracking-tight text-foreground">
+                        {sec.shortLabel}
+                      </span>
+                    </div>
+
+                    {/* Customer Name */}
+                    <span className="truncate font-bold text-[8.5px] sm:text-[9.5px] opacity-90 text-foreground">
+                      {b.customer_name}
                     </span>
                   </div>
                 );
               })}
               {dayBookings.length > 2 && (
-                <span className="text-[9px] text-muted-foreground font-bold block text-left">
-                  +{dayBookings.length - 2} حجز آخر
-                </span>
+                <div className="text-[9px] text-muted-foreground font-black text-center bg-muted/60 rounded-md py-0.5">
+                  +{dayBookings.length - 2} حجز إضافي
+                </div>
               )}
             </>
           ) : (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center justify-end gap-0.5">
-              <span>+ متاح</span>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10.5px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 py-1">
+              <span>+ متاح للحجز</span>
             </div>
           )}
         </div>
@@ -357,29 +372,32 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
   return (
     <>
-      <Card className="glass-card border-border/80 shadow-xl overflow-hidden rounded-3xl">
+      <Card className="glass-card border-amber-500/20 shadow-2xl overflow-hidden rounded-3xl bg-gradient-to-b from-card via-card to-card/95">
         {/* Luxury Header Toolbar */}
-        <CardHeader className="p-4 sm:p-5 border-b border-border/50 bg-gradient-to-r from-emerald-950/10 via-amber-500/5 to-muted/20">
+        <CardHeader className="p-4 sm:p-6 border-b border-border/60 bg-gradient-to-r from-emerald-950/20 via-amber-500/10 to-card">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             
-            {/* Title & Statement (في البيان اسم الشهر كما طلب المستخدم) */}
+            {/* Title & Statement (اسم الشهر ورقم الشهر الهجري المعتمد) */}
             <div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30 shadow-xs">
-                  <CalendarIcon className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
+                  <Crown className="w-6 h-6 stroke-[2.5]" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg sm:text-xl font-black text-foreground">
-                    جدول حجوزات وتوافر القاعة
+                  <CardTitle className="text-lg sm:text-2xl font-black text-foreground flex items-center gap-2">
+                    <span>جدول حجوزات وتوافر القاعة</span>
+                    <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-black px-2.5 py-0.5">
+                      التقويم الهجري المعتمد
+                    </Badge>
                   </CardTitle>
-                  <CardDescription className="text-xs mt-1 text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                  <CardDescription className="text-xs sm:text-sm mt-1 text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
                     <span>مواعيد</span>
-                    <strong className="text-foreground font-bold underline decoration-amber-500/50 underline-offset-4">
+                    <strong className="text-amber-600 dark:text-amber-400 font-extrabold text-sm">
                       {calMode === 'hijri' 
                         ? `شهر ${HIJRI_MONTHS[hijriViewMonth - 1]} (الشهر ${hijriViewMonth}) لعام ${hijriViewYear} هـ` 
-                        : `${format(calViewDate, 'MMMM yyyy', { locale: ar })}`}
+                        : `${format(calViewDate, 'MMMM yyyy', { locale: ar })} م`}
                     </strong>
-                    <span>• تصفح الأيام وتوافر أقسام القاعة وإضافة الحجوزات</span>
+                    <span className="hidden sm:inline">• تصفح الأيام وحالة الأقسام المحجوزة</span>
                   </CardDescription>
                 </div>
               </div>
@@ -394,28 +412,28 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   type="button"
                   onClick={() => setViewType('grid')}
                   className={cn(
-                    "px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
+                    "px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
                     viewType === 'grid'
                       ? "bg-card text-foreground shadow-sm font-black border border-border/60 scale-[1.02]"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                   title="عرض التقويم الشهري الكامل"
                 >
-                  <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                  <LayoutGrid className="w-4 h-4 text-amber-500" />
                   <span>التقويم الشهري</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewType('agenda')}
                   className={cn(
-                    "px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
+                    "px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
                     viewType === 'agenda'
                       ? "bg-card text-foreground shadow-sm font-black border border-border/60 scale-[1.02]"
                       : "text-muted-foreground hover:text-foreground"
                   )}
                   title="عرض قائمة الحجوزات لهذا الشهر"
                 >
-                  <List className="w-3.5 h-3.5 text-amber-500" />
+                  <List className="w-4 h-4 text-amber-500" />
                   <span>قائمة الحجوزات ({currentMonthBookings.length})</span>
                 </button>
               </div>
@@ -454,7 +472,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   size="icon" 
                   variant="ghost" 
                   onClick={prevMonth} 
-                  className="h-8 w-8 text-foreground rounded-xl"
+                  className="h-8 w-8 text-foreground rounded-xl hover:bg-muted"
                   title="الشهر السابق"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -467,7 +485,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                       <div className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400 leading-tight">
                         شهر ({hijriViewMonth}) • {hijriViewYear} هـ
                       </div>
-                      <div className="text-[10.5px] font-bold text-muted-foreground leading-tight mt-0.5">
+                      <div className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">
                         شهر {HIJRI_MONTHS[hijriViewMonth - 1]}
                       </div>
                     </div>
@@ -476,7 +494,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                       <div className="text-sm sm:text-base font-black text-primary leading-tight">
                         شهر ({format(calViewDate, 'MM')}) • {format(calViewDate, 'yyyy')} م
                       </div>
-                      <div className="text-[10.5px] font-bold text-muted-foreground leading-tight mt-0.5">
+                      <div className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">
                         {format(calViewDate, 'MMMM yyyy', { locale: ar })}
                       </div>
                     </div>
@@ -487,7 +505,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   size="icon" 
                   variant="ghost" 
                   onClick={nextMonth} 
-                  className="h-8 w-8 text-foreground rounded-xl"
+                  className="h-8 w-8 text-foreground rounded-xl hover:bg-muted"
                   title="الشهر التالي"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -498,54 +516,62 @@ export default function InteractiveCalendar({ bookings = [] }) {
                 size="sm" 
                 variant="outline" 
                 onClick={resetToToday} 
-                className="text-xs h-9 px-3 rounded-xl font-bold"
+                className="text-xs h-9 px-3.5 rounded-xl font-black border-border shadow-2xs"
               >
                 اليوم
               </Button>
             </div>
           </div>
 
-          {/* Month Quick Status Badges */}
-          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border/40 mt-1">
-            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 text-xs font-semibold py-1 rounded-xl">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 ml-1.5"></span>
-              {monthStats.availableDays} يوم متاح بالكامل
-            </Badge>
-            <Badge variant="outline" className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20 text-xs font-semibold py-1 rounded-xl">
-              <span className="w-2 h-2 rounded-full bg-rose-500 ml-1.5"></span>
-              {monthStats.bookedDays} يوم محجوز بالكامل
-            </Badge>
-            {monthStats.partialDays > 0 && (
-              <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 text-xs font-semibold py-1 rounded-xl">
-                <span className="w-2 h-2 rounded-full bg-amber-500 ml-1.5"></span>
-                {monthStats.partialDays} يوم به حجز جزئي
+          {/* Month Quick Status Badges & Section Legend */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-border/50 mt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 ml-1.5 shadow-xs"></span>
+                {monthStats.availableDays} يوم متاح بالكامل
               </Badge>
-            )}
+              <Badge variant="outline" className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
+                <span className="w-2 h-2 rounded-full bg-rose-500 ml-1.5 shadow-xs"></span>
+                {monthStats.bookedDays} يوم محجوز بالكامل
+              </Badge>
+              {monthStats.partialDays > 0 && (
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 ml-1.5 shadow-xs"></span>
+                  {monthStats.partialDays} يوم به حجز جزئي
+                </Badge>
+              )}
+            </div>
             
-            {/* Quick Section Indicators legend */}
-            <div className="mr-auto hidden sm:flex items-center gap-3 text-[11px] font-bold text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500"></span> نساء فقط</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> رجال فقط</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> رجال ونساء معاً</span>
+            {/* Section Badges Legend */}
+            <div className="flex items-center gap-2.5 text-[11px] font-black">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/40">
+                👑 رجال ونساء
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 border border-emerald-500/40">
+                👔 رجال فقط
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-pink-500/15 text-pink-900 dark:text-pink-300 border border-pink-500/40">
+                👗 نساء فقط
+              </span>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="p-3 sm:p-5">
+        <CardContent className="p-3 sm:p-6">
           {viewType === 'grid' ? (
             <div>
               {/* Day of week headers */}
-              <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 mb-2">
                 {HIJRI_DAYS.map((dayName, idx) => {
                   const isWeekend = dayName === 'الخميس' || dayName === 'الجمعة';
                   return (
                     <div 
                       key={idx} 
                       className={cn(
-                        "text-center text-xs font-black py-2 rounded-xl",
+                        "text-center text-xs sm:text-sm font-black py-2 rounded-2xl shadow-2xs border transition-colors",
                         isWeekend 
-                          ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" 
-                          : "text-muted-foreground bg-muted/40"
+                          ? "text-amber-700 dark:text-amber-300 bg-amber-500/15 border-amber-500/30 font-black" 
+                          : "text-muted-foreground bg-muted/40 border-border/50"
                       )}
                     >
                       {dayName}
@@ -556,9 +582,9 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
               {/* Day Cells Grid */}
               {calMode === 'hijri' ? (
-                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
                   {hijriCalDays.map((day, i) => {
-                    if (!day) return <div key={i} className="min-h-[72px] sm:min-h-[86px] rounded-2xl bg-muted/10" />;
+                    if (!day) return <div key={i} className="min-h-[82px] sm:min-h-[105px] rounded-2xl bg-muted/10 border border-dashed border-border/30" />;
                     const hijriStr = `${hijriViewYear}/${String(hijriViewMonth).padStart(2,'0')}/${String(day).padStart(2,'0')}`;
                     const gDate = moment(hijriStr, 'iYYYY/iMM/iDD').format('YYYY-MM-DD');
                     const dayBookings = getBookingsForDate(gDate);
@@ -568,9 +594,9 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
                   {Array.from({ length: calDays.startDow }).map((_, i) => (
-                    <div key={`empty-${i}`} className="min-h-[72px] sm:min-h-[86px] rounded-2xl bg-muted/10" />
+                    <div key={`empty-${i}`} className="min-h-[82px] sm:min-h-[105px] rounded-2xl bg-muted/10 border border-dashed border-border/30" />
                   ))}
                   {calDays.days.map((day, idx) => {
                     const gDate = format(day, 'yyyy-MM-dd');
@@ -583,42 +609,49 @@ export default function InteractiveCalendar({ bookings = [] }) {
               )}
 
               {/* iPhone / Mobile Interactive Selected Day Inspector Panel */}
-              <div className="mt-5 p-4 rounded-3xl bg-gradient-to-br from-card via-muted/30 to-card border border-border/80 shadow-md">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-black">
-                      <Clock className="w-5 h-5" />
+              <div className="mt-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-card via-muted/40 to-card border border-amber-500/30 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3.5 border-b border-border/60">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-md flex-shrink-0">
+                      <Clock className="w-6 h-6 stroke-[2.5]" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-base font-black text-foreground">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-base sm:text-lg font-black text-foreground">
                           {selectedDayHijri ? `${selectedDayHijri} هـ` : ''}
                         </h4>
-                        <span className="text-xs text-muted-foreground font-medium">
-                          ({inlineSelectedDate ? format(new Date(inlineSelectedDate), 'EEEE، dd MMMM yyyy', { locale: ar }) : ''} م)
-                        </span>
+                        <Badge className={cn(
+                          "text-xs font-black px-2.5 py-0.5 rounded-xl border",
+                          selectedDayStatus === 'full' 
+                            ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30" 
+                            : selectedDayStatus === 'partial' 
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" 
+                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                        )}>
+                          {selectedDayStatus === 'full' ? '🔴 محجوز بالكامل' : selectedDayStatus === 'partial' ? '🟡 حجز جزئي' : '🟢 متاح بالكامل للحجز'}
+                        </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        حالة التوافر: {selectedDayStatus === 'full' ? '🔴 محجوز بالكامل' : selectedDayStatus === 'partial' ? '🟡 حجز جزئي' : '🟢 متاح للحجز'}
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {inlineSelectedDate ? format(new Date(inlineSelectedDate), 'EEEE، dd MMMM yyyy', { locale: ar }) : ''} م
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {selectedDayAvailableSections.length > 0 && (
                       <Button
                         size="sm"
                         onClick={() => openQuickBookingForDate(inlineSelectedDate)}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs h-9 shadow-sm"
+                        className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs h-9 shadow-md shadow-amber-500/20"
                       >
-                        <Plus className="w-3.5 h-3.5 ml-1" /> إضافة حجز في هذا اليوم
+                        <Plus className="w-4 h-4 ml-1 stroke-[3]" /> إضافة حجز في هذا اليوم
                       </Button>
                     )}
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleOpenDialog(inlineSelectedDate)}
-                      className="rounded-xl text-xs h-9 font-bold"
+                      className="rounded-xl text-xs h-9 font-bold border-border"
                     >
                       <Eye className="w-3.5 h-3.5 ml-1" /> إدارة وتفاصيل اليوم
                     </Button>
@@ -626,30 +659,39 @@ export default function InteractiveCalendar({ bookings = [] }) {
                 </div>
 
                 {/* Selected Day Bookings Detail List */}
-                <div className="mt-3">
+                <div className="mt-4">
                   {selectedDayBookings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                       {selectedDayBookings.map(b => {
                         const sec = getSectionBadge(b.hall_section);
                         return (
                           <div 
                             key={b.id}
-                            className="p-3.5 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3 shadow-xs hover:border-primary/40 transition-all"
+                            className="p-4 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3 shadow-sm hover:border-amber-500/50 transition-all"
                           >
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-black text-sm text-foreground truncate">{b.customer_name}</span>
-                                <Badge className={cn("text-[10px] px-2 py-0.5 rounded-lg border", sec.badgeClass)}>
+                            <div className="space-y-1.5 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-black text-sm sm:text-base text-foreground truncate">{b.customer_name}</span>
+                                <Badge className={cn("text-xs px-2.5 py-0.5 rounded-xl border shadow-2xs", sec.badgeClass)}>
                                   {sec.label}
                                 </Badge>
                               </div>
-                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
                                 <span>{b.event_type}</span>
                                 <span>•</span>
                                 <span className="font-mono" dir="ltr">{b.customer_phone}</span>
                                 <span>•</span>
                                 <span className="font-black text-primary">{formatCurrency(b.final_amount)}</span>
                               </p>
+                              {(b.remaining_amount || 0) > 0 ? (
+                                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                                  متبقي للتحصيل: {formatCurrency(b.remaining_amount)}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> خالص السداد بالكامل
+                                </p>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -658,7 +700,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                                   size="icon"
                                   variant="ghost"
                                   onClick={() => openWhatsApp(b)}
-                                  className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 rounded-xl"
+                                  className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 rounded-xl"
                                   title="مراسلة واتساب"
                                 >
                                   <MessageSquare className="w-4 h-4" />
@@ -668,8 +710,8 @@ export default function InteractiveCalendar({ bookings = [] }) {
                                 size="icon"
                                 variant="ghost"
                                 onClick={() => navigate(`/bookings/${b.id}`)}
-                                className="h-8 w-8 text-muted-foreground hover:text-primary rounded-xl"
-                                title="عرض العقد"
+                                className="h-9 w-9 text-muted-foreground hover:text-primary rounded-xl"
+                                title="عرض العقد الكامل"
                               >
                                 <ArrowRight className="w-4 h-4 rotate-180" />
                               </Button>
@@ -679,9 +721,9 @@ export default function InteractiveCalendar({ bookings = [] }) {
                       })}
                     </div>
                   ) : (
-                    <div className="py-4 text-center text-xs text-muted-foreground font-semibold flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>جميع أقسام القاعة متاحة للحجز في هذا اليوم (الرجال والنساء).</span>
+                    <div className="py-5 text-center text-xs sm:text-sm text-muted-foreground font-bold flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <span>جميع أقسام القاعة متاحة للحجز في هذا اليوم (قسم الرجال وقسم النساء).</span>
                     </div>
                   )}
                 </div>
@@ -689,7 +731,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
             </div>
           ) : (
             /* Agenda / List View (Optimized for Mobile & iPhone) */
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {currentMonthBookings.length > 0 ? (
                 currentMonthBookings.map((b) => {
                   const sec = getSectionBadge(b.hall_section);
@@ -699,7 +741,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   return (
                     <div 
                       key={b.id}
-                      className="p-4 rounded-3xl border border-border/80 bg-card hover:bg-muted/30 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                      className="p-4 sm:p-5 rounded-3xl border border-border/80 bg-card hover:bg-muted/30 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
                     >
                       <div className="flex items-start sm:items-center gap-3.5">
                         {/* Date badge */}
@@ -707,7 +749,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                           <span className="text-base leading-none text-amber-400">
                             {hijriDateDisplay ? hijriDateDisplay.split('/')[2] : '--'}
                           </span>
-                          <span className="text-[9.5px] text-emerald-200 mt-1 leading-none">
+                          <span className="text-[10px] text-emerald-200 mt-1 leading-none font-bold">
                             {HIJRI_MONTHS[hijriViewMonth - 1]}
                           </span>
                         </div>
@@ -725,7 +767,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                             </Badge>
                           </div>
 
-                          <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                          <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
                             <span>{b.event_type}</span>
                             <span>•</span>
                             <strong className="text-foreground">{hijriDateDisplay} هـ</strong>
@@ -752,13 +794,13 @@ export default function InteractiveCalendar({ bookings = [] }) {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
                           {b.customer_phone && (
                             <Button
                               size="icon"
                               variant="ghost"
                               onClick={() => openWhatsApp(b)}
-                              className="h-9 w-9 text-emerald-600 hover:bg-emerald-50 rounded-xl"
+                              className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 rounded-xl"
                               title="مراسلة واتساب"
                             >
                               <MessageSquare className="w-4 h-4" />
@@ -768,7 +810,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                             size="sm" 
                             variant="outline"
                             onClick={() => navigate(`/bookings/${b.id}`)}
-                            className="rounded-xl text-xs font-bold h-9"
+                            className="rounded-xl text-xs font-black h-9 border-border"
                           >
                             <span>تفاصيل العقد</span>
                             <ArrowRight className="w-3.5 h-3.5 mr-1 rotate-180" />
@@ -788,7 +830,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
                   <Button 
                     size="sm" 
                     onClick={() => openQuickBookingForDate(todayStr)} 
-                    className="mt-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl shadow-md"
+                    className="mt-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-md"
                   >
                     <Plus className="w-4 h-4 ml-1" /> تسجيل حجز جديد
                   </Button>
