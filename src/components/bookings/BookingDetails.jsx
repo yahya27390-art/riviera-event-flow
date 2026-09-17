@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 
 import { cleanCustomerNotes } from '@/lib/branding';
+import { gregorianToHijri } from '@/lib/hijri';
 
 export default function BookingDetails({ booking, payments, onBack, onEdit, onAddPayment }) {
   const [printing, setPrinting] = useState(false);
@@ -36,17 +37,28 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
 
   const handlePrint = () => {
     setPrinting(true);
-    const printContent = document.getElementById('booking-print-area');
-    if (!printContent) return;
-    const printHTML = printContent.outerHTML;
+    const printArea = document.getElementById('booking-print-area');
+    if (!printArea) {
+      setPrinting(false);
+      return;
+    }
 
-    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    const printWindow = window.open('', '_blank', 'width=950,height=1200');
+    if (!printWindow) {
+      window.print();
+      setPrinting(false);
+      return;
+    }
+
+    const printHTML = printArea.outerHTML;
+
+    printWindow.document.open();
     printWindow.document.write(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
-  <meta charset="utf-8"/>
-  <title>عقد حجز - ${booking.booking_number || 'قاعة قمة الريف'}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <meta charset="utf-8" />
+  <title>عقد حجز - ${booking.booking_number}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -57,12 +69,22 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
     }
     @page {
       size: A4 portrait;
-      margin: 8mm 10mm;
+      margin: 0;
     }
     @media print {
-      html, body { width: 210mm; background: #fff !important; }
+      html, body { width: 210mm !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      #booking-print-area { padding: 0 !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+      #booking-print-area {
+        width: 210mm !important;
+        height: 296.5mm !important;
+        max-height: 296.5mm !important;
+        padding: 8mm 10mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        overflow: hidden !important;
+      }
       .no-print { display: none !important; }
     }
     .no-print {
@@ -73,9 +95,17 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
     .btn-close { background: #fff; color: #333; border: none; border-radius: 8px; padding: 8px 16px; font-family: Cairo, sans-serif; font-size: 13px; cursor: pointer; }
     #booking-print-area {
       width: 210mm;
+      height: 297mm;
+      max-height: 297mm;
       margin: 15mm auto;
       background: #fff;
       box-shadow: 0 4px 30px rgba(0,0,0,0.15);
+      box-sizing: border-box;
+      padding: 8mm 10mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
     }
   </style>
 </head>
@@ -120,12 +150,13 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
               <div><p className="text-muted-foreground mb-1">العميل</p><p className="font-medium">{booking.customer_name}</p></div>
               <div><p className="text-muted-foreground mb-1">الجوال</p><p className="font-medium" dir="ltr">{booking.customer_phone}</p></div>
               <div>
-                <p className="text-muted-foreground mb-1">التاريخ الميلادي</p>
-                <p className="font-medium">{booking.event_date ? format(new Date(booking.event_date), 'dd MMMM yyyy', { locale: ar }) : '-'}</p>
+                <p className="text-muted-foreground mb-1">تاريخ المناسبة (الهجري أساسي)</p>
+                <p className="font-bold text-amber-600 dark:text-amber-400 text-base">{booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ</p>
               </div>
-              {booking.event_date_hijri && (
-                <div><p className="text-muted-foreground mb-1">التاريخ الهجري</p><p className="font-medium">{booking.event_date_hijri}</p></div>
-              )}
+              <div>
+                <p className="text-muted-foreground mb-1">الموافق بالميلادي (ثانوي)</p>
+                <p className="font-medium text-muted-foreground">{booking.event_date ? format(new Date(booking.event_date), 'dd MMMM yyyy', { locale: ar }) : '-'}</p>
+              </div>
               <div><p className="text-muted-foreground mb-1">نوع المناسبة</p><p className="font-medium">{booking.event_type}</p></div>
               {booking.hall_section && <div><p className="text-muted-foreground mb-1">القسم</p><p className="font-medium">{booking.hall_section}</p></div>}
               {booking.service_type && <div><p className="text-muted-foreground mb-1">نوع الخدمات</p><p className="font-medium">{booking.service_type}</p></div>}

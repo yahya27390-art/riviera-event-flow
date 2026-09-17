@@ -130,7 +130,7 @@ export default function Bookings() {
     const phone = cleanPhone.startsWith('966') ? cleanPhone : `966${cleanPhone.replace(/^0/, '')}`;
     const hallName = hallSettings.hall_name || 'قاعة قمة الريف';
     const message = encodeURIComponent(
-      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنرحب بكم في ${hallName}.\nرقم الحجز: ${booking.booking_number}\nتاريخ المناسبة: ${booking.event_date} (${booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ)\nالمبلغ الإجمالي: ${formatCurrency(booking.final_amount)}\nالمسدد: ${formatCurrency(booking.paid_amount)}\nالمتبقي: ${formatCurrency(booking.remaining_amount)}\n\nنتشرف بخدمتكم!`
+      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنرحب بكم في ${hallName}.\nرقم الحجز: ${booking.booking_number}\nتاريخ المناسبة: ${booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ (الموافق ${booking.event_date} م)\nالمبلغ الإجمالي: ${formatCurrency(booking.final_amount)}\nالمسدد: ${formatCurrency(booking.paid_amount)}\nالمتبقي: ${formatCurrency(booking.remaining_amount)}\n\nنتشرف بخدمتكم!`
     );
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
@@ -281,7 +281,7 @@ export default function Bookings() {
                       {booking.event_date ? (
                         <div>
                           <div className="font-bold">{booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ</div>
-                          <div className="text-xs text-muted-foreground font-mono">{booking.event_date}</div>
+                          <div className="text-xs text-muted-foreground font-mono">({booking.event_date} م)</div>
                         </div>
                       ) : '-'}
                     </TableCell>

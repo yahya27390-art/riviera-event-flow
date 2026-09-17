@@ -33,12 +33,17 @@ export default function BookingPrintTemplate({ booking, payments, hallSettings }
         background: '#ffffff',
         color: '#111827',
         width: '210mm',
-        minHeight: '297mm',
+        height: '297mm',
+        maxHeight: '297mm',
         margin: '0 auto',
-        padding: '10mm 12mm',
-        fontSize: '9.5pt',
-        lineHeight: 1.5,
+        padding: '8mm 10mm',
+        fontSize: '9pt',
+        lineHeight: 1.45,
         boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        overflow: 'hidden',
       }}
     >
       {/* Outer Royal Frame */}
@@ -47,12 +52,17 @@ export default function BookingPrintTemplate({ booking, payments, hallSettings }
           border: '2.5px solid #0f382a',
           outline: '1px solid #c8972e',
           outlineOffset: '-4.5px',
-          padding: '7mm 8mm',
+          padding: '5mm 6mm',
           borderRadius: '4px',
           background: '#ffffff',
-          position: 'relative',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          boxSizing: 'border-box',
         }}
       >
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Header: Hall Info / Centered Crest Logo / Contract Meta */}
         <div
           style={{
@@ -121,7 +131,7 @@ export default function BookingPrintTemplate({ booking, payments, hallSettings }
                 </div>
               )}
               <div style={{ fontSize: '7.5pt', color: '#64748b', marginTop: '2px' }}>
-                تاريخ الإصدار: {nowGreg} م ({nowHijri} هـ)
+                تاريخ الإصدار: <strong style={{ color: '#0f382a' }}>{nowHijri} هـ</strong> ({nowGreg} م)
               </div>
             </div>
           </div>
@@ -168,10 +178,10 @@ export default function BookingPrintTemplate({ booking, payments, hallSettings }
                 <td style={{ padding: '5px 8px', fontWeight: '800', color: '#0f172a', width: '32%', border: '1px solid #cbd5e1' }}>{booking.hall_section || 'كامل القاعة'}</td>
               </tr>
               <tr>
-                <td style={{ padding: '5px 8px', fontWeight: '700', color: '#475569', border: '1px solid #cbd5e1' }}>التاريخ الميلادي:</td>
-                <td style={{ padding: '5px 8px', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{eventDateGreg}</td>
-                <td style={{ padding: '5px 8px', fontWeight: '700', color: '#475569', border: '1px solid #cbd5e1' }}>التاريخ الهجري:</td>
-                <td style={{ padding: '5px 8px', fontWeight: '800', color: '#0f172a', border: '1px solid #cbd5e1' }}>{eventDateHijri}</td>
+                <td style={{ padding: '5px 8px', fontWeight: '700', color: '#0f382a', border: '1px solid #cbd5e1', background: '#f0fdf4' }}>تاريخ المناسبة (الهجري أساسي):</td>
+                <td style={{ padding: '5px 8px', fontWeight: '900', color: '#0f382a', border: '1px solid #cbd5e1', background: '#f0fdf4', fontSize: '9.5pt' }}>{eventDateHijri} هـ</td>
+                <td style={{ padding: '5px 8px', fontWeight: '700', color: '#64748b', border: '1px solid #cbd5e1' }}>الموافق بالميلادي:</td>
+                <td style={{ padding: '5px 8px', fontWeight: '600', color: '#64748b', border: '1px solid #cbd5e1' }}>{eventDateGreg} م</td>
               </tr>
               <tr style={{ background: '#f1f5f9' }}>
                 <td style={{ padding: '5px 8px', fontWeight: '700', color: '#475569', border: '1px solid #cbd5e1' }}>نوع الخدمات:</td>
@@ -327,16 +337,17 @@ export default function BookingPrintTemplate({ booking, payments, hallSettings }
             {hall.iban && <div><strong>IBAN:</strong> <span style={{ direction: 'ltr', display: 'inline-block', fontWeight: '700' }}>{hall.iban}</span></div>}
           </div>
         )}
+        </div>
 
-        {/* Signatures & Official Stamp Section */}
+        {/* Signatures & Official Stamp Section (Pinned to Bottom) */}
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: '1.2fr 1fr 1.2fr',
             gap: '15px',
-            marginTop: '10px',
+            marginTop: 'auto',
             borderTop: '1.5px solid #0f382a',
-            paddingTop: '10px',
+            paddingTop: '8px',
             textAlign: 'center',
             fontSize: '8.5pt',
           }}

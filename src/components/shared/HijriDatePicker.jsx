@@ -115,8 +115,8 @@ export default function HijriDatePicker({ value, onChange, label, required, plac
           <div className="text-right">
             {value?.hijri ? (
               <>
-                <p className="text-sm font-black text-foreground">{gregorianFormatted}</p>
-                <p className="text-xs font-bold text-amber-600 dark:text-amber-400">{value.hijri} هـ</p>
+                <p className="text-sm font-black text-amber-600 dark:text-amber-400">{value.hijri} هـ</p>
+                <p className="text-xs font-semibold text-muted-foreground">{gregorianFormatted ? `الموافق: ${gregorianFormatted} م` : ''}</p>
               </>
             ) : (
               <>

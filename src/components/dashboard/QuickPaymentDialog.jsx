@@ -9,13 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CreditCard, Search } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { toast } from 'sonner';
+import HijriDatePicker from '@/components/shared/HijriDatePicker';
+import { gregorianToHijri } from '@/lib/hijri';
 
 export default function QuickPaymentDialog({ open, onClose }) {
   const queryClient = useQueryClient();
   const [selectedBookingId, setSelectedBookingId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('نقدي');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const todayGreg = new Date().toISOString().split('T')[0];
+  const [paymentDate, setPaymentDate] = useState(todayGreg);
+  const [paymentDateHijri, setPaymentDateHijri] = useState(gregorianToHijri(todayGreg));
   const [search, setSearch] = useState('');
 
   const { data: bookings = [] } = useQuery({
@@ -35,12 +39,14 @@ export default function QuickPaymentDialog({ open, onClose }) {
   const createPayment = useMutation({
     mutationFn: async () => {
       const booking = selectedBooking;
+      const hijri = paymentDateHijri || gregorianToHijri(paymentDate);
       const paymentData = {
         booking_id: booking.id,
         booking_number: booking.booking_number,
         amount: parseFloat(amount),
         payment_method: paymentMethod,
         payment_date: paymentDate,
+        payment_date_hijri: hijri,
         notes: 'سداد دفعة',
       };
       await base44.entities.Payment.create(paymentData);
@@ -54,12 +60,14 @@ export default function QuickPaymentDialog({ open, onClose }) {
           type: 'إيراد', source: 'حجز', reference_id: booking.id,
           reference_label: `دفعة حجز ${booking.booking_number}`,
           amount: parseFloat(amount), transaction_date: paymentDate,
+          transaction_date_hijri: hijri,
         });
       } else {
         await base44.entities.BankTransaction.create({
           type: 'إيراد', source: 'حجز', reference_id: booking.id,
           reference_label: `دفعة حجز ${booking.booking_number}`,
           amount: parseFloat(amount), transaction_date: paymentDate,
+          transaction_date_hijri: hijri,
           payment_method: paymentMethod === 'مدى' ? 'مدى' : 'تحويل بنكي',
         });
       }
@@ -166,10 +174,14 @@ export default function QuickPaymentDialog({ open, onClose }) {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">التاريخ</Label>
-            <Input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
-          </div>
+          <HijriDatePicker
+            label="تاريخ السداد (تقويم أم القرى) *"
+            value={{ hijri: paymentDateHijri, gregorian: paymentDate }}
+            onChange={({ hijri, gregorian }) => {
+              setPaymentDate(gregorian);
+              setPaymentDateHijri(hijri);
+            }}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>إلغاء</Button>

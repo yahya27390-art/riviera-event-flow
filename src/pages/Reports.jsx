@@ -32,8 +32,8 @@ function showDate(dateStr, hijriStr) {
   const hijri = hijriStr || gregorianToHijri(dateStr);
   return (
     <div>
-      <div className="font-medium text-xs">{hijri} هـ</div>
-      <div className="text-xs text-muted-foreground">{greg} م</div>
+      <div className="font-bold text-xs text-foreground">{hijri} هـ</div>
+      <div className="text-[11px] text-muted-foreground font-mono">({greg} م)</div>
     </div>
   );
 }

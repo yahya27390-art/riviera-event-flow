@@ -179,6 +179,11 @@ export default function InteractiveCalendar({ bookings = [] }) {
             <span className={`text-sm sm:text-base font-bold ${isToday ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
               {dayNumber}
             </span>
+            {calMode === 'hijri' && gregorianDate && (
+              <span className="text-[10px] text-muted-foreground font-mono opacity-70">
+                ({parseInt(gregorianDate.split('-')[2], 10)}م)
+              </span>
+            )}
             {isToday && (
               <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black">
                 اليوم

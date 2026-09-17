@@ -29,10 +29,10 @@ export default function DayBookingsDialog({ open, onClose, date, bookings = [] }
               <div>
                 <DialogTitle className="flex items-center gap-2 text-lg font-extrabold text-foreground">
                   <Calendar className="w-5 h-5 text-amber-500" />
-                  {format(new Date(date), 'EEEE، d MMMM yyyy', { locale: ar })}
+                  {hijriDate} هـ
                 </DialogTitle>
-                <DialogDescription className="text-xs font-semibold text-primary mt-1">
-                  الموافق: {hijriDate} هـ
+                <DialogDescription className="text-xs font-semibold text-muted-foreground mt-1">
+                  الموافق: {format(new Date(date), 'EEEE، d MMMM yyyy', { locale: ar })} م
                 </DialogDescription>
               </div>
             </div>

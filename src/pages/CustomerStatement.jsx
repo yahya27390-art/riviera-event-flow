@@ -12,7 +12,8 @@ import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import PageHeader from '@/components/shared/PageHeader';
 import { openPrintWindow } from '@/lib/printReport';
-import CustomerStatementPrintTemplate from '@/components/print/CustomerStatementPrintTemplate';
+import CustomerStatementPrintTemplate, { buildCustomerStatementHTML } from '@/components/print/CustomerStatementPrintTemplate';
+import { gregorianToHijri } from '@/lib/hijri';
 
 export default function CustomerStatement() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,7 +70,7 @@ export default function CustomerStatement() {
       method: b.booking_method || '-',
       status: b.status,
       id: b.id,
-      hijri: b.event_date_hijri || '',
+      hijri: b.event_date_hijri || gregorianToHijri(b.event_date),
     })),
     ...customerPayments.map(p => ({
       date: p.payment_date,
@@ -80,7 +81,7 @@ export default function CustomerStatement() {
       method: p.payment_method || 'سداد مالي',
       status: null,
       id: p.id,
-      hijri: '',
+      hijri: p.payment_date_hijri || gregorianToHijri(p.payment_date),
     })),
   ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
@@ -96,12 +97,8 @@ export default function CustomerStatement() {
 
   const handlePrint = () => {
     if (!selectedCustomer) return;
-    const printElement = document.getElementById('statement-print-area');
-    if (printElement) {
-      openPrintWindow(printElement.outerHTML, `كشف حساب عميل - ${selectedCustomer.name}`);
-    } else {
-      setShowPreview(true);
-    }
+    const html = buildCustomerStatementHTML(selectedCustomer, bookings, payments, hallSettings);
+    openPrintWindow(html, `كشف حساب عميل - ${selectedCustomer.name}`);
   };
 
   return (
@@ -247,8 +244,8 @@ export default function CustomerStatement() {
                             <TableRow key={item.id || i} className={item.type === 'payment' ? 'bg-emerald-50/40' : ''}>
                               <TableCell className="text-sm">
                                 <div>
-                                  <p className="font-medium">{item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'}</p>
-                                  {item.hijri && <p className="text-xs text-muted-foreground">{item.hijri}</p>}
+                                  <p className="font-bold text-xs text-foreground">{item.hijri ? `${item.hijri} هـ` : '-'}</p>
+                                  <p className="text-[11px] text-muted-foreground font-mono">({item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'} م)</p>
                                 </div>
                               </TableCell>
                               <TableCell className="font-mono text-sm font-semibold text-emerald-900">{item.booking_number || '-'}</TableCell>

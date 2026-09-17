@@ -198,7 +198,10 @@ export default function PendingPayments() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">{booking.booking_number}</TableCell>
-                      <TableCell className="text-sm">{booking.event_date ? format(new Date(booking.event_date), 'dd/MM/yyyy') : '-'}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="font-bold text-xs">{booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ</div>
+                        <div className="text-[11px] text-muted-foreground font-mono">({booking.event_date ? format(new Date(booking.event_date), 'dd/MM/yyyy') : '-'} م)</div>
+                      </TableCell>
                       <TableCell className="text-sm font-medium">{formatCurrency(booking.final_amount)}</TableCell>
                       <TableCell className="text-sm text-green-700 font-medium">{formatCurrency(booking.paid_amount)}</TableCell>
                       <TableCell className="text-sm font-bold text-red-600">{formatCurrency(booking.remaining_amount)}</TableCell>
@@ -220,7 +223,7 @@ export default function PendingPayments() {
                                 const hallName = hallSettings.hall_name || 'قاعة قمة الريف';
                                 const ibanText = hallSettings.iban ? `\nرقم الحساب البنكي (IBAN):\n${hallSettings.iban}` : '';
                                 const message = encodeURIComponent(
-                                  `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنود تذكيركم بموعد مناسبتكم في ${hallName} بتاريخ ${booking.event_date}.\nالمبلغ المتبقي للتحصيل: ${formatCurrency(booking.remaining_amount)}${ibanText}\n\nيرجى التكرم بتسديد المبلغ وتزويدنا بصورة الإيصال. شاكرين لكم تعاونكم!`
+                                  `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنود تذكيركم بموعد مناسبتكم في ${hallName} بتاريخ ${booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ (الموافق ${booking.event_date} م).\nالمبلغ المتبقي للتحصيل: ${formatCurrency(booking.remaining_amount)}${ibanText}\n\nيرجى التكرم بتسديد المبلغ وتزويدنا بصورة الإيصال. شاكرين لكم تعاونكم!`
                                 );
                                 window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
                               }}

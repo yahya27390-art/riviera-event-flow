@@ -112,8 +112,8 @@ export default function BankManagement() {
                     <TableCell className="text-sm">
                       {t.transaction_date ? (
                         <div>
-                          <div className="font-medium">{gregorianToHijri(t.transaction_date)} هـ</div>
-                          <div className="text-xs text-muted-foreground">{format(new Date(t.transaction_date), 'dd/MM/yyyy')} م</div>
+                          <div className="font-bold text-xs">{gregorianToHijri(t.transaction_date)} هـ</div>
+                          <div className="text-[11px] text-muted-foreground font-mono">({format(new Date(t.transaction_date), 'dd/MM/yyyy')} م)</div>
                         </div>
                       ) : '-'}
                     </TableCell>

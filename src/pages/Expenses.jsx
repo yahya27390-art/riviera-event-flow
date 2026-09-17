@@ -230,7 +230,7 @@ export default function Expenses() {
                       {e.expense_date ? (
                         <div>
                           <div className="font-bold text-xs">{gregorianToHijri(e.expense_date)} هـ</div>
-                          <div className="text-[11px] text-muted-foreground font-mono">{format(new Date(e.expense_date), 'dd/MM/yyyy')} م</div>
+                          <div className="text-[11px] text-muted-foreground font-mono">({format(new Date(e.expense_date), 'dd/MM/yyyy')} م)</div>
                         </div>
                       ) : '-'}
                     </TableCell>

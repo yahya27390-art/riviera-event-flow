@@ -89,7 +89,7 @@ export default function Dashboard() {
     const phone = cleanPhone.startsWith('966') ? cleanPhone : `966${cleanPhone.replace(/^0/, '')}`;
     const hallName = hallSettings.hall_name || 'قاعة قمة الريف';
     const message = encodeURIComponent(
-      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنود تذكيركم بموعد مناسبتكم في ${hallName} بتاريخ ${booking.event_date} (${booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ).\nالمبلغ المتبقي: ${formatCurrency(booking.remaining_amount)}\nنسعد بخدمتكم دائماً!`
+      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${booking.customer_name}\nنود تذكيركم بموعد مناسبتكم في ${hallName} بتاريخ ${booking.event_date_hijri || gregorianToHijri(booking.event_date)} هـ (الموافق ${booking.event_date} م).\nالمبلغ المتبقي: ${formatCurrency(booking.remaining_amount)}\nنسعد بخدمتكم دائماً!`
     );
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
@@ -116,8 +116,8 @@ export default function Dashboard() {
                   <Sparkles className="w-3 h-3 text-amber-400" /> فاخر
                 </Badge>
               </div>
-              <p className="text-emerald-200/80 text-xs sm:text-sm mt-1 font-medium">
-                {format(new Date(), "EEEE، dd MMMM yyyy", { locale: ar })} • {gregorianToHijri(format(new Date(), 'yyyy-MM-dd'))} هـ
+              <p className="text-emerald-200/90 text-xs sm:text-sm mt-1 font-medium">
+                <strong className="text-amber-300 font-bold">{gregorianToHijri(format(new Date(), 'yyyy-MM-dd'))} هـ</strong> • <span>{format(new Date(), "EEEE، dd MMMM yyyy", { locale: ar })} م</span>
               </p>
             </div>
           </div>
@@ -364,7 +364,7 @@ export default function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm truncate">{b.customer_name}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {b.event_type} • {b.event_date_hijri || gregorianToHijri(b.event_date)} هـ
+                      {b.event_type} • <strong className="text-foreground font-semibold">{b.event_date_hijri || gregorianToHijri(b.event_date)} هـ</strong> <span className="opacity-75">({b.event_date} م)</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -433,7 +433,7 @@ export default function Dashboard() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {b.event_type} • {b.event_date}
+                        {b.event_type} • <strong className="text-foreground">{b.event_date_hijri || gregorianToHijri(b.event_date)} هـ</strong> ({b.event_date} م)
                       </p>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-border/40">
