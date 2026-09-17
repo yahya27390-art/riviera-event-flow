@@ -1,9 +1,6 @@
-/**
- * Generates A5 LANDSCAPE payment receipt HTML for print window
- * source: 'cash' | 'bank'
- */
 import { numberToArabicWords } from '@/lib/arabicWords';
 import { gregorianToHijri } from '@/lib/hijri';
+import { getHallLogoUrl, cleanCustomerNotes, DEFAULT_HALL_NAME } from '@/lib/branding';
 
 function fc(n) {
   return (parseFloat(n) || 0).toLocaleString('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,13 +29,14 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
   const amountWords = numberToArabicWords(payment.amount);
   const receiptNum = `${booking.booking_number || 'N/A'}-${source === 'bank' ? 'B' : 'C'}`;
   const sourceLabel = source === 'bank' ? 'البنك' : 'الخزينة';
-  const sourceColor = source === 'bank' ? '#1a3560' : '#1a3d26';
+  const sourceColor = source === 'bank' ? '#1a3560' : '#0f382a';
   const sourceLightColor = source === 'bank' ? '#e8eef7' : '#f0f7f0';
   const sourceBorderColor = source === 'bank' ? '#b0c4e8' : '#c5dfc5';
 
-  const hallName = hs.hall_name || 'قاعة قمة الريف';
-  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
-  const logoHtml = `<img src="${esc(logoSrc)}" alt="logo" style="width:65px;height:65px;object-fit:contain;display:block;border-radius:6px;background:#fff;padding:2px;" onerror="this.src='./logo.png'"/>`;
+  const hallName = hs.hall_name || DEFAULT_HALL_NAME;
+  const logoSrc = getHallLogoUrl(hs);
+  const logoHtml = `<img src="${esc(logoSrc)}" alt="logo" style="width:65px;height:65px;object-fit:contain;display:block;border-radius:6px;background:#fff;padding:2px;" onerror="this.style.display='none'"/>`;
+  const cleanNote = cleanCustomerNotes(payment.notes);
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -311,9 +309,9 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
           <span class="ig-label">رقم المرجع:</span>
           <span class="ig-val">${esc(payment.reference_number)}</span>` : ''}
 
-          ${payment.notes ? `
+          ${cleanNote ? `
           <span class="ig-label">ملاحظات:</span>
-          <span class="ig-val">${esc(payment.notes)}</span>` : ''}
+          <span class="ig-val">${esc(cleanNote)}</span>` : ''}
         </div>
       </div>
     </div>

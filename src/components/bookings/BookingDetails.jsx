@@ -15,6 +15,8 @@ import BookingPrintTemplate from '@/components/print/BookingPrintTemplate';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 
+import { cleanCustomerNotes } from '@/lib/branding';
+
 export default function BookingDetails({ booking, payments, onBack, onEdit, onAddPayment }) {
   const [printing, setPrinting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -24,6 +26,7 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
     queryFn: () => base44.entities.HallSettings.list(),
   });
   const hallSettings = settingsList[0] || {};
+  const cleanedNotes = cleanCustomerNotes(booking?.notes);
 
   const statusColor = (status) => {
     if (status === 'مؤكد') return 'bg-green-100 text-green-700 border-green-200';
@@ -34,44 +37,57 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
   const handlePrint = () => {
     setPrinting(true);
     const printContent = document.getElementById('booking-print-area');
+    if (!printContent) return;
     const printHTML = printContent.outerHTML;
 
-    const printWindow = window.open('', '_blank', 'width=794,height=1123');
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
     printWindow.document.write(`<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="utf-8"/>
-  <title>حجز - ${booking.booking_number}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <title>عقد حجز - ${booking.booking_number || 'قاعة قمة الريف'}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Cairo', Arial, sans-serif;
       direction: rtl;
-      background: #fff;
-      color: #1a1a2e;
+      background: #f1f5f9;
+      color: #111827;
     }
     @page {
       size: A4 portrait;
-      margin: 15mm 14mm 15mm 14mm;
+      margin: 8mm 10mm;
     }
     @media print {
-      html, body { width: 210mm; }
+      html, body { width: 210mm; background: #fff !important; }
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      #booking-print-area { padding: 0 !important; max-width: 100% !important; }
+      #booking-print-area { padding: 0 !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+      .no-print { display: none !important; }
     }
+    .no-print {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 999; background: rgba(0,0,0,0.85); padding: 8px 16px; border-radius: 12px;
+    }
+    .btn-print { background: #0f382a; color: #fff; border: 1px solid #c8972e; border-radius: 8px; padding: 8px 22px; font-family: Cairo, sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-close { background: #fff; color: #333; border: none; border-radius: 8px; padding: 8px 16px; font-family: Cairo, sans-serif; font-size: 13px; cursor: pointer; }
     #booking-print-area {
-      max-width: 182mm;
-      margin: 0 auto;
-      padding: 10mm 0;
+      width: 210mm;
+      margin: 15mm auto;
+      background: #fff;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.15);
     }
   </style>
 </head>
 <body>
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ طباعة العقد / حفظ PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
+  </div>
   ${printHTML}
   <script>
     window.onload = function() {
-      setTimeout(function() { window.print(); window.close(); }, 500);
+      setTimeout(function() { window.print(); }, 400);
     };
   </script>
 </body>
@@ -226,10 +242,10 @@ export default function BookingDetails({ booking, payments, onBack, onEdit, onAd
         </div>
       </div>
 
-      {booking.notes && (
+      {cleanedNotes && (
         <Card className="border-0 shadow-sm mt-6">
-          <CardHeader><CardTitle className="text-base">ملاحظات</CardTitle></CardHeader>
-          <CardContent><p className="text-sm text-muted-foreground">{booking.notes}</p></CardContent>
+          <CardHeader><CardTitle className="text-base">ملاحظات الاتفاق</CardTitle></CardHeader>
+          <CardContent><p className="text-sm text-muted-foreground">{cleanedNotes}</p></CardContent>
         </Card>
       )}
 

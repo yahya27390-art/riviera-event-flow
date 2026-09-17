@@ -11,6 +11,8 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import PageHeader from '@/components/shared/PageHeader';
+import { getHallLogoUrl, DEFAULT_HALL_NAME } from '@/lib/branding';
+import { gregorianToHijri } from '@/lib/hijri';
 
 export default function CustomerStatement() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,8 +96,8 @@ export default function CustomerStatement() {
   const handlePrint = () => {
     if (!selectedCustomer) return;
     const hs = hallSettings || {};
-    const hallName = hs.hall_name || 'قاعة قمة الريف';
-    const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+    const hallName = hs.hall_name || DEFAULT_HALL_NAME;
+    const logoSrc = getHallLogoUrl(hs);
     const printDate = new Date().toLocaleDateString('ar-SA');
     const hijriDate = gregorianToHijri(new Date().toISOString().split('T')[0]);
 

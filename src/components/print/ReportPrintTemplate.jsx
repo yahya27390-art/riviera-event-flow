@@ -2,11 +2,12 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
+import { getHallLogoUrl, DEFAULT_HALL_NAME } from '@/lib/branding';
 
 export default function ReportPrintTemplate({ type, data, hallSettings, dateFrom, dateTo }) {
   const hall = hallSettings || {};
-  const hallName = hall.hall_name || 'قاعة قمة الريف';
-  const logoSrc = hall.logo_url && hall.logo_url.trim() ? hall.logo_url : './logo-gold.jpg';
+  const hallName = hall.hall_name || DEFAULT_HALL_NAME;
+  const logoSrc = getHallLogoUrl(hall);
   const now = format(new Date(), 'dd/MM/yyyy HH:mm');
 
   const titles = {
@@ -27,19 +28,19 @@ export default function ReportPrintTemplate({ type, data, hallSettings, dateFrom
     return '#fee2e2';
   };
 
-  const tableHeaderStyle = { background: '#1a2e5a', color: '#fff', padding: '7px 10px', textAlign: 'right', fontWeight: '600', fontSize: '9.5pt' };
+  const tableHeaderStyle = { background: '#0f382a', color: '#fff', padding: '7px 10px', textAlign: 'right', fontWeight: '700', fontSize: '9.5pt' };
   const tdStyle = { padding: '7px 10px', borderBottom: '1px solid #e5e7eb', fontSize: '9.5pt', textAlign: 'right' };
 
   return (
     <div id="report-print-area" style={{ fontFamily: 'Cairo, Arial, sans-serif', direction: 'rtl', background: '#fff', color: '#1a1a2e', maxWidth: '210mm', margin: '0 auto', padding: '12mm 14mm', fontSize: '10pt', lineHeight: 1.6 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #1a2e5a', paddingBottom: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #0f382a', paddingBottom: '10px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={logoSrc} alt="شعار قاعة قمة الريف" style={{ maxHeight: '60px', maxWidth: '140px', objectFit: 'contain' }} onError={(e) => { e.target.src = './logo.png'; }} />
-          <div style={{ fontSize: '16pt', fontWeight: '800', color: '#1a2e5a' }}>{hallName}</div>
+          <img src={logoSrc} alt="شعار قاعة قمة الريف" style={{ maxHeight: '60px', maxWidth: '140px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+          <div style={{ fontSize: '16pt', fontWeight: '900', color: '#0f382a' }}>{hallName}</div>
         </div>
         <div style={{ textAlign: 'left', fontSize: '8.5pt', color: '#666' }}>
-          <div style={{ fontWeight: '700', fontSize: '14pt', color: '#1a2e5a', marginBottom: '2px' }}>{titles[type]}</div>
+          <div style={{ fontWeight: '800', fontSize: '14pt', color: '#c8972e', marginBottom: '2px' }}>{titles[type]}</div>
           <div>الفترة: {dateFrom} إلى {dateTo}</div>
           <div>تاريخ الطباعة: {now}</div>
         </div>

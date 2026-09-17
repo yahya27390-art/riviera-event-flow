@@ -10,81 +10,82 @@ export function openPrintWindow(htmlContent, title = 'تقرير') {
 <head>
   <meta charset="utf-8"/>
   <title>${title}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:'Cairo',Arial,sans-serif;direction:rtl;background:#f0f0f0;color:#1a1a2e;}
-    @page{size:A4 portrait;margin:14mm 14mm 14mm 14mm;}
+    body{font-family:'Cairo',Arial,sans-serif;direction:rtl;background:#f1f5f9;color:#111827;}
+    @page{size:A4 portrait;margin:12mm 12mm 12mm 12mm;}
     @media print{
-      html,body{width:210mm;}
-      body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+      html,body{width:210mm;background:#fff!important;}
+      body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
       .no-print{display:none!important;}
-      .page{box-shadow:none!important;margin:0!important;}
+      .page{box-shadow:none!important;margin:0!important;padding:0!important;width:100%!important;}
     }
     .page{
-      width:182mm;background:#fff;margin:10mm auto;
-      box-shadow:0 4px 32px rgba(0,0,0,.15);
-      padding:14mm 14mm 10mm 14mm;
+      width:186mm;background:#fff;margin:10mm auto;
+      box-shadow:0 4px 30px rgba(0,0,0,.12);
+      padding:12mm 14mm 10mm 14mm;
       page-break-after:always;
+      border-radius:4px;
     }
     .page:last-child{page-break-after:auto;}
 
     /* ── Header ── */
-    .rpt-header{text-align:center;margin-bottom:8mm;padding-bottom:6mm;border-bottom:3px solid #1a2e5a;}
-    .rpt-logo{width:70px;height:70px;object-fit:contain;margin:0 auto 4mm;display:block;}
+    .rpt-header{text-align:center;margin-bottom:6mm;padding-bottom:5mm;border-bottom:2.5px solid #0f382a;}
+    .rpt-logo{width:75px;height:75px;object-fit:contain;margin:0 auto 3mm;display:block;}
     .rpt-logo-placeholder{
-      width:70px;height:70px;border-radius:50%;background:#1a2e5a;
+      width:75px;height:75px;border-radius:50%;background:#0f382a;
       display:flex;align-items:center;justify-content:center;
-      margin:0 auto 4mm;color:#fff;font-size:22px;font-weight:800;
+      margin:0 auto 3mm;color:#fff;font-size:22px;font-weight:800;
     }
-    .rpt-hall-name{font-size:20px;font-weight:800;color:#1a2e5a;margin-bottom:1mm;}
-    .rpt-title{font-size:15px;font-weight:700;color:#c8972e;letter-spacing:.5px;margin-bottom:1mm;}
-    .rpt-period{font-size:11px;color:#666;}
-    .rpt-contact{font-size:10px;color:#888;margin-top:2mm;}
+    .rpt-hall-name{font-size:20px;font-weight:900;color:#0f382a;margin-bottom:2px;}
+    .rpt-title{font-size:15px;font-weight:800;color:#c8972e;letter-spacing:.5px;margin-bottom:2px;}
+    .rpt-period{font-size:10.5px;color:#4b5563;}
+    .rpt-contact{font-size:9.5px;color:#6b7280;margin-top:2mm;}
 
     /* ── Summary boxes ── */
-    .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4mm;margin-bottom:7mm;}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4mm;margin-bottom:6mm;}
     .summary-grid-2{grid-template-columns:repeat(2,1fr);}
-    .sum-box{background:#f8f6f2;border:1px solid #e5dcc8;border-radius:3mm;padding:4mm;text-align:center;}
-    .sum-box.accent{background:#1a2e5a;color:#fff;border-color:#1a2e5a;}
-    .sum-box.green{background:#f0faf4;border-color:#b2dfdb;}
-    .sum-box.red{background:#fff5f5;border-color:#ffcccc;}
-    .sum-box .lbl{font-size:9px;color:inherit;opacity:.7;margin-bottom:1mm;}
+    .sum-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:3mm;padding:4mm;text-align:center;}
+    .sum-box.accent{background:#0f382a;color:#fff;border-color:#0f382a;}
+    .sum-box.green{background:#f0fdf4;border-color:#bbf7d0;}
+    .sum-box.red{background:#fff5f5;border-color:#fecaca;}
+    .sum-box .lbl{font-size:9px;color:inherit;opacity:.8;margin-bottom:1mm;}
     .sum-box.accent .lbl{color:#fff;}
     .sum-box .val{font-size:15px;font-weight:800;}
 
     /* ── Section title ── */
     .sec-title{
-      font-size:12px;font-weight:700;color:#1a2e5a;
+      font-size:12px;font-weight:800;color:#0f382a;
       border-right:4px solid #c8972e;padding-right:3mm;
       margin-bottom:3mm;
     }
 
     /* ── Table ── */
-    table{width:100%;border-collapse:collapse;font-size:10px;margin-bottom:5mm;}
-    thead tr{background:#1a2e5a;color:#fff;}
-    thead th{padding:3mm 2.5mm;text-align:right;font-weight:600;}
-    tbody tr:nth-child(even){background:#f8f6f2;}
-    tbody tr:hover{background:#f0ece0;}
-    tbody td{padding:2.5mm 2.5mm;border-bottom:1px solid #ede8d8;vertical-align:top;}
-    tfoot tr{background:#f0ece0;font-weight:700;}
-    tfoot td{padding:3mm 2.5mm;border-top:2px solid #1a2e5a;}
+    table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:5mm;}
+    thead tr{background:#0f382a;color:#fff;}
+    thead th{padding:2.5mm 2.5mm;text-align:right;font-weight:700;}
+    tbody tr:nth-child(even){background:#f8fafc;}
+    tbody tr:hover{background:#f1f5f9;}
+    tbody td{padding:2.5mm 2.5mm;border-bottom:1px solid #e2e8f0;vertical-align:top;}
+    tfoot tr{background:#f8fafc;font-weight:800;border-top:2px solid #0f382a;}
+    tfoot td{padding:3mm 2.5mm;}
 
     /* ── Balance row ── */
     .balance-row{display:flex;justify-content:space-between;align-items:center;padding:3mm 4mm;border-radius:2mm;margin-bottom:2mm;}
-    .balance-row.opening{background:#e8f0fe;border:1px solid #c5d8f6;}
-    .balance-row.income{background:#f0faf4;border:1px solid #b2dfdb;}
-    .balance-row.expense{background:#fff5f5;border:1px solid #ffcccc;}
-    .balance-row.closing{background:#1a2e5a;color:#fff;margin-top:3mm;}
+    .balance-row.opening{background:#f8fafc;border:1px solid #cbd5e1;}
+    .balance-row.income{background:#f0fdf4;border:1px solid #bbf7d0;}
+    .balance-row.expense{background:#fff5f5;border:1px solid #fecaca;}
+    .balance-row.closing{background:#0f382a;color:#fff;margin-top:3mm;}
     .balance-row .bl{font-size:11px;}
     .balance-row .bv{font-size:13px;font-weight:800;}
 
     /* ── Footer ── */
     .rpt-footer{
-      margin-top:8mm;padding-top:4mm;border-top:1px solid #e5dcc8;
-      font-size:9px;color:#aaa;text-align:center;
+      margin-top:8mm;padding-top:4mm;border-top:1px solid #cbd5e1;
+      font-size:8.5pt;color:#64748b;text-align:center;
     }
-    .rpt-footer strong{color:#1a2e5a;}
+    .rpt-footer strong{color:#0f382a;}
 
     /* ── Print button ── */
     .print-btn-bar{
@@ -92,12 +93,12 @@ export function openPrintWindow(htmlContent, title = 'تقرير') {
       display:flex;gap:10px;z-index:999;
     }
     .print-btn{
-      background:#1a2e5a;color:#fff;border:none;border-radius:8px;
+      background:#0f382a;color:#fff;border:1px solid #c8972e;border-radius:8px;
       padding:10px 26px;font-family:'Cairo',sans-serif;font-size:14px;
       font-weight:700;cursor:pointer;
     }
     .close-btn{
-      background:#fff;color:#333;border:1px solid #ccc;border-radius:8px;
+      background:#fff;color:#333;border:1px solid #cbd5e1;border-radius:8px;
       padding:10px 20px;font-family:'Cairo',sans-serif;font-size:14px;cursor:pointer;
     }
   </style>
