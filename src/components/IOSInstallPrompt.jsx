@@ -63,7 +63,7 @@ export default function IOSInstallPrompt() {
               <Plus className="w-7 h-7" style={{ color: '#C8A96A' }} />
             </div>
             <h2 className="text-xl font-bold" style={{ color: '#3E2723', fontFamily: 'Cairo, sans-serif' }}>
-              حمّل تطبيق ريفيرا
+              حمّل تطبيق قاعة قمة الريف
             </h2>
             <p className="text-sm" style={{ color: '#3E2723', opacity: 0.6, fontFamily: 'Cairo, sans-serif' }}>
               أضف التطبيق إلى شاشتك الرئيسية للوصول السريع

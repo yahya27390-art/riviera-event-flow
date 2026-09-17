@@ -5,7 +5,8 @@ import { formatCurrency } from '@/lib/utils/bookingNumber';
 
 export default function ReportPrintTemplate({ type, data, hallSettings, dateFrom, dateTo }) {
   const hall = hallSettings || {};
-  const hallName = hall.hall_name || 'ريفيرا';
+  const hallName = hall.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hall.logo_url && hall.logo_url.trim() ? hall.logo_url : './logo-gold.jpg';
   const now = format(new Date(), 'dd/MM/yyyy HH:mm');
 
   const titles = {
@@ -33,12 +34,9 @@ export default function ReportPrintTemplate({ type, data, hallSettings, dateFrom
     <div id="report-print-area" style={{ fontFamily: 'Cairo, Arial, sans-serif', direction: 'rtl', background: '#fff', color: '#1a1a2e', maxWidth: '210mm', margin: '0 auto', padding: '12mm 14mm', fontSize: '10pt', lineHeight: 1.6 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #1a2e5a', paddingBottom: '10px', marginBottom: '16px' }}>
-        <div>
-          {hall.logo_url ? (
-            <img src={hall.logo_url} alt="شعار" style={{ maxHeight: '55px', maxWidth: '130px', objectFit: 'contain' }} />
-          ) : (
-            <div style={{ fontSize: '18pt', fontWeight: '800', color: '#1a2e5a' }}>{hallName}</div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src={logoSrc} alt="شعار قاعة قمة الريف" style={{ maxHeight: '60px', maxWidth: '140px', objectFit: 'contain' }} onError={(e) => { e.target.src = './logo.png'; }} />
+          <div style={{ fontSize: '16pt', fontWeight: '800', color: '#1a2e5a' }}>{hallName}</div>
         </div>
         <div style={{ textAlign: 'left', fontSize: '8.5pt', color: '#666' }}>
           <div style={{ fontWeight: '700', fontSize: '14pt', color: '#1a2e5a', marginBottom: '2px' }}>{titles[type]}</div>

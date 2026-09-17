@@ -36,9 +36,9 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
   const sourceLightColor = source === 'bank' ? '#e8eef7' : '#f0f7f0';
   const sourceBorderColor = source === 'bank' ? '#b0c4e8' : '#c5dfc5';
 
-  const logoHtml = hs.logo_url
-    ? `<img src="${esc(hs.logo_url)}" alt="logo" style="width:70px;height:70px;object-fit:contain;display:block;"/>`
-    : `<div style="width:70px;height:70px;border-radius:50%;background:${sourceColor};display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;font-family:Cairo,sans-serif;">${esc((hs.hall_name || 'ق').charAt(0))}</div>`;
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logoHtml = `<img src="${esc(logoSrc)}" alt="logo" style="width:65px;height:65px;object-fit:contain;display:block;border-radius:6px;background:#fff;padding:2px;" onerror="this.src='./logo.png'"/>`;
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">

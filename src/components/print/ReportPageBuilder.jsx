@@ -11,28 +11,32 @@ function toHijri(dateStr) {
 }
 
 function header(hallSettings, title, dateFrom, dateTo) {
-  const logo = hallSettings.logo_url
-    ? `<img class="rpt-logo" src="${hallSettings.logo_url}" alt="logo"/>`
-    : `<div class="rpt-logo-placeholder">${(hallSettings.hall_name || 'Q').charAt(0)}</div>`;
+  const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logo = `<img class="rpt-logo" src="${logoSrc}" alt="شعار القاعة" style="width:75px;height:75px;object-fit:contain;margin:0 auto 4mm;display:block;" onerror="this.src='./logo.png'"/>`;
   const fromHijri = toHijri(dateFrom);
   const toHijri2 = toHijri(dateTo);
   return `
     <div class="rpt-header">
       ${logo}
-      <div class="rpt-hall-name">${hallSettings.hall_name || 'القاعة'}</div>
+      <div class="rpt-hall-name">${hallName}</div>
       <div class="rpt-title">${title}</div>
       <div class="rpt-period">
         الفترة من: <strong>${fromHijri}</strong> هـ — ${fd(dateFrom)} م
         <br/>إلى: <strong>${toHijri2}</strong> هـ — ${fd(dateTo)} م
       </div>
-      ${hallSettings.phone ? `<div class="rpt-contact">📞 ${hallSettings.phone}${hallSettings.address ? ' | ' + hallSettings.address : ''}</div>` : ''}
+      ${hs.phone ? `<div class="rpt-contact">📞 ${hs.phone}${hs.address ? ' | 📍 ' + hs.address : ''}${hs.tax_number ? ' | الرقم الضريبي: ' + hs.tax_number : ''}</div>` : ''}
     </div>`;
 }
 
 function footer(hallSettings) {
+  const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
   return `<div class="rpt-footer">
-    تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallSettings.hall_name || ''}</strong>
-    ${hallSettings.commercial_register ? ' • س.ت: ' + hallSettings.commercial_register : ''}
+    تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallName}</strong>
+    ${hs.commercial_register ? ' • س.ت: ' + hs.commercial_register : ''}
+    ${hs.tax_number ? ' • الرقم الضريبي: ' + hs.tax_number : ''}
   </div>`;
 }
 
@@ -179,13 +183,18 @@ export function buildOccupancyPage(hallSettings, occupancyData, bookings, dateFr
 }
 
 export function buildPendingPage(hallSettings, pendingBookings, printDate) {
+  const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logo = `<img class="rpt-logo" src="${logoSrc}" alt="شعار القاعة" style="width:75px;height:75px;object-fit:contain;margin:0 auto 4mm;display:block;" onerror="this.src='./logo.png'"/>`;
+
   const total = pendingBookings.reduce((s, b) => s + (b.remaining_amount || 0), 0);
   const totalPaid = pendingBookings.reduce((s, b) => s + (b.paid_amount || 0), 0);
   const totalFinal = pendingBookings.reduce((s, b) => s + (b.final_amount || 0), 0);
 
   const rows = pendingBookings.map((b, i) => `<tr>
     <td style="text-align:center">${i + 1}</td>
-    <td>${b.booking_number || '-'}</td>
+    <td>${b.booking_number || '-'}${b.voucher_number ? `<br/><span style="font-size:8px;color:#888">سند: ${b.voucher_number}</span>` : ''}</td>
     <td>${b.customer_name || '-'}<br/><span style="font-size:8px;color:#888" dir="ltr">${b.customer_phone || ''}</span></td>
     <td style="font-size:9px">${b.event_date_hijri || toHijri(b.event_date)}<br/><span style="color:#888">${fd(b.event_date)}</span></td>
     <td>${b.event_type || '-'}</td>
@@ -194,22 +203,18 @@ export function buildPendingPage(hallSettings, pendingBookings, printDate) {
     <td style="text-align:left;color:#c0392b;font-weight:700">${fc(b.remaining_amount)}</td>
   </tr>`).join('');
 
-  const logo = hallSettings.logo_url
-    ? `<img class="rpt-logo" src="${hallSettings.logo_url}" alt="logo"/>`
-    : `<div class="rpt-logo-placeholder">${(hallSettings.hall_name || 'Q').charAt(0)}</div>`;
-
   return `<div class="page">
     <div class="rpt-header">
       ${logo}
-      <div class="rpt-hall-name">${hallSettings.hall_name || 'القاعة'}</div>
-      <div class="rpt-title">تقرير المطالبات المعلقة</div>
-      <div class="rpt-period">بتاريخ: ${fd(printDate)}</div>
-      ${hallSettings.phone ? `<div class="rpt-contact">📞 ${hallSettings.phone}</div>` : ''}
+      <div class="rpt-hall-name">${hallName}</div>
+      <div class="rpt-title">تقرير المطالبات والتحصيلات المعلقة</div>
+      <div class="rpt-period">تاريخ إصدار التقرير: ${fd(printDate)}</div>
+      ${hs.phone ? `<div class="rpt-contact">📞 ${hs.phone}${hs.address ? ' | 📍 ' + hs.address : ''}</div>` : ''}
     </div>
     <div class="summary-grid">
       <div class="sum-box"><div class="lbl">إجمالي المبالغ الكلية</div><div class="val">${fc(totalFinal)}</div></div>
       <div class="sum-box green"><div class="lbl">إجمالي المسدد</div><div class="val">${fc(totalPaid)}</div></div>
-      <div class="sum-box red"><div class="lbl">إجمالي المتبقي</div><div class="val">${fc(total)}</div></div>
+      <div class="sum-box red"><div class="lbl">إجمالي المتبقي للتحصيل</div><div class="val">${fc(total)}</div></div>
     </div>
     <div class="sec-title">قائمة المطالبات (${pendingBookings.length} عميل)</div>
     <table>
@@ -221,7 +226,7 @@ export function buildPendingPage(hallSettings, pendingBookings, printDate) {
         <th style="text-align:left">المسدد</th>
         <th style="text-align:left">المتبقي</th>
       </tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:6mm;color:#999">لا توجد مطالبات</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:6mm;color:#999">لا توجد مطالبات معلقة</td></tr>'}</tbody>
       <tfoot><tr>
         <td colspan="5">الإجمالي</td>
         <td style="text-align:left">${fc(totalFinal)}</td>
@@ -230,10 +235,12 @@ export function buildPendingPage(hallSettings, pendingBookings, printDate) {
       </tr></tfoot>
     </table>
     <div style="margin-top:6mm;padding:3mm 4mm;background:#fff8e1;border:1px solid #ffe082;border-radius:2mm;font-size:10px;color:#7a5c00">
-      ⚠️ هذا التقرير يعكس الوضع المالي في تاريخ إصداره فقط.
+      ⚠️ هذا التقرير يعكس الوضع المالي للمطالبات المعلقة في تاريخ إصداره.
     </div>
     <div class="rpt-footer">
-      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallSettings.hall_name || ''}</strong>
+      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallName}</strong>
+      ${hs.commercial_register ? ' • س.ت: ' + hs.commercial_register : ''}
+      ${hs.tax_number ? ' • الرقم الضريبي: ' + hs.tax_number : ''}
     </div>
   </div>`;
 }
@@ -241,21 +248,22 @@ export function buildPendingPage(hallSettings, pendingBookings, printDate) {
 /** Professional B&W payment receipt - bank-style, laser printer optimized */
 export function buildPaymentReceiptBW(hallSettings, booking, payment, receiptNum) {
   const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
   const payDateGreg = payment.payment_date || new Date().toISOString().split('T')[0];
   const payHijri = payment.payment_date_hijri || toHijri(payDateGreg);
   const eventHijri = booking.event_date_hijri || toHijri(booking.event_date);
-
-  const logo = hs.logo_url
-    ? `<img src="${hs.logo_url}" alt="logo" style="max-height:55px;max-width:100px;object-fit:contain;"/>`
-    : '';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logo = `<img src="${logoSrc}" alt="logo" style="max-height:55px;max-width:100px;object-fit:contain;background:#fff;border-radius:4px;padding:2px;" onerror="this.src='./logo.png'"/>`;
 
   return `<div class="page" style="font-family:'Cairo',Arial,sans-serif;direction:rtl;width:182mm;min-height:120mm;background:#fff;border:2px solid #000;padding:0;page-break-after:always;">
     <!-- TOP BAR -->
     <div style="background:#000;color:#fff;padding:4mm 6mm;display:flex;justify-content:space-between;align-items:center;">
-      <div>
+      <div style="display:flex;align-items:center;gap:3mm;">
         ${logo}
-        <div style="font-size:16px;font-weight:900;letter-spacing:.5px;">${hs.hall_name || 'القاعة'}</div>
-        ${hs.city ? `<div style="font-size:9px;opacity:.7;">${hs.city}</div>` : ''}
+        <div>
+          <div style="font-size:16px;font-weight:900;letter-spacing:.5px;">${hallName}</div>
+          ${hs.city ? `<div style="font-size:9px;opacity:.7;">${hs.city}</div>` : ''}
+        </div>
       </div>
       <div style="text-align:center;">
         <div style="font-size:20px;font-weight:900;letter-spacing:2px;">سند قبض</div>
@@ -272,6 +280,7 @@ export function buildPaymentReceiptBW(hallSettings, booking, payment, receiptNum
       <span>تاريخ السند: <strong>${payHijri}</strong> هـ</span>
       <span>الموافق: <strong>${fd(payDateGreg)}</strong> م</span>
       ${hs.commercial_register ? `<span style="margin-right:auto;">س.ت: ${hs.commercial_register}</span>` : ''}
+      ${hs.tax_number ? `<span>الرقم الضريبي: ${hs.tax_number}</span>` : ''}
     </div>
 
     <!-- BODY -->
@@ -345,7 +354,7 @@ export function buildPaymentReceiptBW(hallSettings, booking, payment, receiptNum
 
     <!-- FOOTER STRIP -->
     <div style="border-top:1px solid #000;padding:1.5mm 6mm;font-size:8px;color:#333;display:flex;justify-content:space-between;background:#f8f8f8;">
-      <span>${hs.hall_name || ''} ${hs.phone ? '| ☎ ' + hs.phone : ''}</span>
+      <span>${hallName} ${hs.phone ? '| ☎ ' + hs.phone : ''}</span>
       <span>هذا الإيصال وثيقة رسمية للسداد</span>
       <span>${hs.iban ? 'IBAN: ' + hs.iban : ''}</span>
     </div>
@@ -353,6 +362,11 @@ export function buildPaymentReceiptBW(hallSettings, booking, payment, receiptNum
 }
 
 export function buildCashPage(hallSettings, cashTxns, allCashTxns, dateFrom, dateTo) {
+  const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logo = `<img class="rpt-logo" src="${logoSrc}" alt="شعار القاعة" style="width:75px;height:75px;object-fit:contain;margin:0 auto 4mm;display:block;" onerror="this.src='./logo.png'"/>`;
+
   // Opening balance = all txns BEFORE dateFrom
   const opening = allCashTxns
     .filter(t => t.transaction_date < dateFrom)
@@ -373,17 +387,13 @@ export function buildCashPage(hallSettings, cashTxns, allCashTxns, dateFrom, dat
     </tr>`;
   }).join('');
 
-  const logo = hallSettings.logo_url
-    ? `<img class="rpt-logo" src="${hallSettings.logo_url}" alt="logo"/>`
-    : `<div class="rpt-logo-placeholder">${(hallSettings.hall_name || 'Q').charAt(0)}</div>`;
-
   return `<div class="page">
     <div class="rpt-header">
       ${logo}
-      <div class="rpt-hall-name">${hallSettings.hall_name || 'القاعة'}</div>
-      <div class="rpt-title">كشف حساب الخزينة النقدية</div>
+      <div class="rpt-hall-name">${hallName}</div>
+      <div class="rpt-title">كشف حساب الخزينة النقدية (الكاش)</div>
       <div class="rpt-period">الفترة من ${fd(dateFrom)} إلى ${fd(dateTo)}</div>
-      ${hallSettings.phone ? `<div class="rpt-contact">📞 ${hallSettings.phone}</div>` : ''}
+      ${hs.phone ? `<div class="rpt-contact">📞 ${hs.phone}${hs.address ? ' | 📍 ' + hs.address : ''}</div>` : ''}
     </div>
     <div class="balance-row opening">
       <span class="bl">الرصيد الافتتاحي قبل الفترة</span>
@@ -419,12 +429,18 @@ export function buildCashPage(hallSettings, cashTxns, allCashTxns, dateFrom, dat
       </tr></tfoot>
     </table>
     <div class="rpt-footer">
-      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallSettings.hall_name || ''}</strong>
+      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallName}</strong>
+      ${hs.commercial_register ? ' • س.ت: ' + hs.commercial_register : ''}
     </div>
   </div>`;
 }
 
 export function buildBankPage(hallSettings, bankTxns, allBankTxns, dateFrom, dateTo) {
+  const hs = hallSettings || {};
+  const hallName = hs.hall_name || 'قاعة قمة الريف';
+  const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+  const logo = `<img class="rpt-logo" src="${logoSrc}" alt="شعار القاعة" style="width:75px;height:75px;object-fit:contain;margin:0 auto 4mm;display:block;" onerror="this.src='./logo.png'"/>`;
+
   const opening = allBankTxns
     .filter(t => t.transaction_date < dateFrom)
     .reduce((s, t) => t.type === 'إيراد' ? s + (t.amount || 0) : s - (t.amount || 0), 0);
@@ -445,17 +461,13 @@ export function buildBankPage(hallSettings, bankTxns, allBankTxns, dateFrom, dat
     </tr>`;
   }).join('');
 
-  const logo = hallSettings.logo_url
-    ? `<img class="rpt-logo" src="${hallSettings.logo_url}" alt="logo"/>`
-    : `<div class="rpt-logo-placeholder">${(hallSettings.hall_name || 'Q').charAt(0)}</div>`;
-
   return `<div class="page">
     <div class="rpt-header">
       ${logo}
-      <div class="rpt-hall-name">${hallSettings.hall_name || 'القاعة'}</div>
-      <div class="rpt-title">كشف حساب البنك</div>
+      <div class="rpt-hall-name">${hallName}</div>
+      <div class="rpt-title">كشف حساب البنك والشبكات</div>
       <div class="rpt-period">الفترة من ${fd(dateFrom)} إلى ${fd(dateTo)}</div>
-      ${hallSettings.phone ? `<div class="rpt-contact">📞 ${hallSettings.phone}</div>` : ''}
+      ${hs.phone ? `<div class="rpt-contact">📞 ${hs.phone}${hs.address ? ' | 📍 ' + hs.address : ''}</div>` : ''}
     </div>
     <div class="balance-row opening">
       <span class="bl">الرصيد الافتتاحي قبل الفترة</span>
@@ -491,7 +503,8 @@ export function buildBankPage(hallSettings, bankTxns, allBankTxns, dateFrom, dat
       </tr></tfoot>
     </table>
     <div class="rpt-footer">
-      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallSettings.hall_name || ''}</strong>
+      تم إنشاء هذا التقرير بتاريخ ${new Date().toLocaleDateString('ar-SA')} • <strong>${hallName}</strong>
+      ${hs.commercial_register ? ' • س.ت: ' + hs.commercial_register : ''}
     </div>
   </div>`;
 }

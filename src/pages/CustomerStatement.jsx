@@ -92,30 +92,185 @@ export default function CustomerStatement() {
   };
 
   const handlePrint = () => {
-    const printContent = document.getElementById('statement-print-area');
-    if (!printContent) return;
-    const printHTML = printContent.outerHTML;
-    const printWindow = window.open('', '_blank', 'width=794,height=1123');
-    printWindow.document.write(`<!DOCTYPE html>
+    if (!selectedCustomer) return;
+    const hs = hallSettings || {};
+    const hallName = hs.hall_name || 'قاعة قمة الريف';
+    const logoSrc = hs.logo_url && hs.logo_url.trim() ? hs.logo_url : './logo-gold.jpg';
+    const printDate = new Date().toLocaleDateString('ar-SA');
+    const hijriDate = gregorianToHijri(new Date().toISOString().split('T')[0]);
+
+    const rowsHtml = timeline.map((item, idx) => {
+      const isPay = item.type === 'payment';
+      return `
+        <tr style="background: ${idx % 2 === 0 ? '#fff' : '#f9fafb'}; border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 6px 10px; font-size: 10pt;">${idx + 1}</td>
+          <td style="padding: 6px 10px; font-size: 10pt;">
+            ${item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'}
+            ${item.hijri ? `<div style="font-size: 8pt; color: #888;">${item.hijri}</div>` : ''}
+          </td>
+          <td style="padding: 6px 10px; font-size: 10pt; font-family: monospace;">${item.booking_number || '-'}</td>
+          <td style="padding: 6px 10px; font-size: 10pt; font-weight: 600;">${item.label}</td>
+          <td style="padding: 6px 10px; font-size: 10pt;">${item.method || '-'}</td>
+          <td style="padding: 6px 10px; font-size: 10pt; text-align: left; font-weight: 700; color: ${isPay ? '#059669' : '#1e3a8a'};">
+            ${isPay ? '+' : ''}${formatCurrency(item.amount)}
+          </td>
+          <td style="padding: 6px 10px; font-size: 9pt; text-align: center;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isPay ? '#d1fae5; color: #065f46' : item.status === 'مؤكد' ? '#d1fae5; color: #065f46' : '#fef9c3; color: #92400e'};">
+              ${isPay ? 'سداد مالي' : item.status || 'حجز'}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="utf-8"/>
-  <title>كشف حساب - ${selectedCustomer?.name}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <title>كشف حساب عميل - ${selectedCustomer.name}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Cairo', Arial, sans-serif; direction: rtl; background: #fff; color: #1a1a2e; }
-    @page { size: A4 portrait; margin: 15mm 14mm; }
-    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 7px 10px; text-align: right; font-size: 10pt; }
-    thead tr { background: #1a2e5a; color: #fff; }
-    tbody tr:nth-child(even) { background: #f8fafc; }
-    tbody tr { border-bottom: 1px solid #e5e7eb; }
+    body { font-family: 'Cairo', Arial, sans-serif; direction: rtl; background: #f3f4f6; color: #111827; }
+    @page { size: A4 portrait; margin: 10mm 12mm; }
+    @media print {
+      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      .page-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+    }
+    .no-print {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; z-index: 999; background: rgba(0,0,0,0.85); padding: 8px 16px; border-radius: 12px;
+    }
+    .btn-print { background: #059669; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-family: Cairo, sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
+    .btn-close { background: #fff; color: #333; border: none; border-radius: 8px; padding: 8px 16px; font-family: Cairo, sans-serif; font-size: 13px; cursor: pointer; }
+    .page-container {
+      width: 210mm; min-height: 297mm; background: #fff; margin: 15mm auto;
+      box-shadow: 0 4px 25px rgba(0,0,0,0.12); padding: 14mm 16mm;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th { background: #0f2b1d; color: #fff; padding: 8px 10px; font-size: 10pt; font-weight: 700; text-align: right; }
+    td { vertical-align: middle; }
   </style>
 </head>
-<body>${printHTML}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);}<\/script></body>
-</html>`);
+<body>
+  <div class="no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ طباعة كشف الحساب</button>
+    <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
+  </div>
+
+  <div class="page-container">
+    {/* Header */}
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0f2b1d; padding-bottom: 12px; margin-bottom: 16px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img src="${logoSrc}" alt="Logo" style="width: 75px; height: 75px; object-fit: contain; border-radius: 8px;" onerror="this.src='./logo.png'"/>
+        <div>
+          <h1 style="font-size: 18pt; font-weight: 900; color: #0f2b1d;">${hallName}</h1>
+          <p style="font-size: 9pt; color: #6b7280; margin-top: 2px;">نظام إدارة الحجوزات والحسابات الرسمية</p>
+        </div>
+      </div>
+      <div style="text-align: left; font-size: 9pt; color: #4b5563; line-height: 1.5;">
+        <div style="font-size: 14pt; font-weight: 900; color: #059669;">كشف حساب عميل</div>
+        <div>تاريخ الإصدار: <strong>${printDate}</strong> (${hijriDate} هـ)</div>
+        ${hs.phone ? `<div>هاتف: ${hs.phone}</div>` : ''}
+        ${hs.commercial_register ? `<div>س.ت: ${hs.commercial_register}</div>` : ''}
+        ${hs.tax_number ? `<div>الرقم الضريبي: ${hs.tax_number}</div>` : ''}
+      </div>
+    </div>
+
+    {/* Customer Banner */}
+    <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <div style="font-size: 9pt; color: #64748b;">اسم العميل:</div>
+        <div style="font-size: 14pt; font-weight: 900; color: #0f172a;">${selectedCustomer.name}</div>
+      </div>
+      <div style="text-align: left;">
+        <div style="font-size: 9pt; color: #64748b;">رقم الجوال:</div>
+        <div style="font-size: 12pt; font-weight: 800; color: #0f172a; direction: ltr;">${selectedCustomer.phone}</div>
+      </div>
+    </div>
+
+    {/* Financial Summary Grid */}
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
+      <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 2px;">عدد الحجوزات</div>
+        <div style="font-size: 13pt; font-weight: 800; color: #0f172a;">${customerBookings.length}</div>
+      </div>
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 8.5pt; color: #3b82f6; margin-bottom: 2px;">إجمالي الحجوزات</div>
+        <div style="font-size: 13pt; font-weight: 800; color: #1e3a8a;">${formatCurrency(totalBooked)}</div>
+      </div>
+      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 8.5pt; color: #16a34a; margin-bottom: 2px;">إجمالي المسدد</div>
+        <div style="font-size: 13pt; font-weight: 800; color: #15803d;">${formatCurrency(totalPaid)}</div>
+      </div>
+      <div style="background: ${totalRemaining > 0 ? '#fef2f2; border: 1.5px solid #fca5a5;' : '#f0fdf4; border: 1.5px solid #86efac;'} border-radius: 8px; padding: 10px; text-align: center;">
+        <div style="font-size: 8.5pt; color: ${totalRemaining > 0 ? '#dc2626' : '#16a34a'}; margin-bottom: 2px;">صافي المتبقي للتحصيل</div>
+        <div style="font-size: 13pt; font-weight: 900; color: ${totalRemaining > 0 ? '#b91c1c' : '#15803d'};">${formatCurrency(totalRemaining)}</div>
+      </div>
+    </div>
+
+    {/* Transactions Timeline Table */}
+    <div style="font-size: 11pt; font-weight: 800; color: #0f2b1d; margin-bottom: 6px; border-right: 4px solid #059669; padding-right: 8px;">
+      تفاصيل الحركات المالية وسجل الحجوزات
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 25px;">#</th>
+          <th>التاريخ</th>
+          <th>رقم الحجز</th>
+          <th>البيان / العملية</th>
+          <th>طريقة الدفع</th>
+          <th style="text-align: left;">المبلغ</th>
+          <th style="text-align: center;">الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #9ca3af;">لا توجد عمليات مسجلة لهذا العميل</td></tr>'}
+      </tbody>
+      <tfoot>
+        <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #0f2b1d;">
+          <td colspan="5" style="padding: 10px; text-align: right;">المجموع الإجمالي للرصيد المتبقي:</td>
+          <td colspan="2" style="padding: 10px; text-align: left; font-size: 12pt; color: ${totalRemaining > 0 ? '#dc2626' : '#059669'};">
+            ${formatCurrency(totalRemaining)}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+
+    {/* Signatures */}
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 9pt;">
+      <div>
+        <div style="color: #64748b; margin-bottom: 30px;">المحاسب المالي</div>
+        <div style="border-top: 1px dashed #94a3b8; padding-top: 4px;">الاسم والتوقيع</div>
+      </div>
+      <div>
+        <div style="color: #64748b; margin-bottom: 30px;">ختم المنشأة</div>
+        <div style="width: 50px; height: 50px; border: 1px dashed #cbd5e1; border-radius: 50%; margin: -10px auto 0;"></div>
+      </div>
+      <div>
+        <div style="color: #64748b; margin-bottom: 30px;">توقيع العميل / المستلم</div>
+        <div style="border-top: 1px dashed #94a3b8; padding-top: 4px;">${selectedCustomer.name}</div>
+      </div>
+    </div>
+
+    {/* Footer */}
+    <div style="margin-top: 30px; text-align: center; font-size: 8pt; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 8px;">
+      ${hallName} • ${hs.address || 'المملكة العربية السعودية'} ${hs.phone ? `• هاتف: ${hs.phone}` : ''}
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 400);
+    };
+  </script>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    printWindow.document.write(html);
     printWindow.document.close();
   };
 
