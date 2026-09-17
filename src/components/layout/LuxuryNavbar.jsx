@@ -43,7 +43,10 @@ export default function LuxuryNavbar() {
   const isUserAdmin = user?.role === 'admin';
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-card/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-sm transition-colors">
+    <header
+      className="sticky top-0 z-40 w-full border-b border-border/80 bg-card/90 dark:bg-slate-950/90 backdrop-blur-xl shadow-sm transition-colors"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           
