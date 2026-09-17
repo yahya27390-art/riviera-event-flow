@@ -27,49 +27,47 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
   const payDateGreg = payment.payment_date || new Date().toISOString().split('T')[0];
   const payDateHijri = payment.payment_date_hijri || gregorianToHijri(payDateGreg);
   const amountWords = numberToArabicWords(payment.amount);
-  const receiptNum = `${booking.booking_number || 'N/A'}-${source === 'bank' ? 'B' : 'C'}`;
-  const sourceLabel = source === 'bank' ? 'البنك' : 'الخزينة';
-  const sourceColor = source === 'bank' ? '#1a3560' : '#0f382a';
-  const sourceLightColor = source === 'bank' ? '#e8eef7' : '#f0f7f0';
-  const sourceBorderColor = source === 'bank' ? '#b0c4e8' : '#c5dfc5';
+  const isBank = source === 'bank' || payment.payment_method?.includes('بنك') || payment.payment_method?.includes('تحويل') || payment.payment_method?.includes('شبكة');
+  const receiptNum = `${booking.booking_number || 'RIV'}-${isBank ? 'BANK' : 'CASH'}-${(payment.id || '').substring(0, 4) || '01'}`;
+  const sourceLabel = isBank ? 'تحويل بنكي / شبكة' : 'سداد نقدي (الخزينة)';
 
   const hallName = hs.hall_name || DEFAULT_HALL_NAME;
   const logoSrc = getHallLogoUrl(hs);
-  const logoHtml = `<img src="${esc(logoSrc)}" alt="logo" style="width:65px;height:65px;object-fit:contain;display:block;border-radius:6px;background:#fff;padding:2px;" onerror="this.style.display='none'"/>`;
   const cleanNote = cleanCustomerNotes(payment.notes);
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="utf-8"/>
-<title>إيصال سداد - ${esc(receiptNum)}</title>
+<title>سند قبض مالي - ${esc(receiptNum)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:'Cairo',Arial,sans-serif;direction:rtl;background:#eee;color:#111;}
+  body{font-family:'Cairo',Arial,sans-serif;direction:rtl;background:#f1f5f9;color:#111;}
 
-  @page { size: A5 landscape; margin: 8mm; }
+  @page { size: A5 landscape; margin: 6mm; }
   @media print {
-    html,body{background:#fff;}
+    html,body{background:#fff!important;width:100%;}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     .no-print{display:none!important;}
-    .page{box-shadow:none!important;margin:0!important;border-radius:0!important;width:100%;max-width:100%;}
+    .page{box-shadow:none!important;margin:0!important;border-radius:0!important;width:100%!important;max-width:100%!important;}
   }
 
   .no-print{
     position:fixed;top:10px;left:50%;transform:translateX(-50%);
-    display:flex;gap:10px;z-index:999;background:rgba(0,0,0,.05);padding:8px 14px;border-radius:12px;
+    display:flex;gap:10px;z-index:999;background:rgba(0,0,0,.8);padding:8px 16px;border-radius:12px;
   }
-  .btn-print{background:${sourceColor};color:#fff;border:none;border-radius:8px;padding:8px 20px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
-  .btn-close{background:#fff;color:#555;border:1px solid #ccc;border-radius:8px;padding:8px 16px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;}
+  .btn-print{background:#0f382a;color:#fff;border:1px solid #c8972e;border-radius:8px;padding:8px 22px;font-family:Cairo,sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
+  .btn-close{background:#fff;color:#333;border:none;border-radius:8px;padding:8px 16px;font-family:Cairo,sans-serif;font-size:13px;cursor:pointer;}
 
   /* Main page - A5 landscape = 210mm x 148mm */
   .page{
-    width:194mm;min-height:132mm;
+    width:196mm;min-height:136mm;
     background:#fff;
-    margin:18mm auto;
-    box-shadow:0 6px 30px rgba(0,0,0,.18);
-    border-radius:5mm;
+    margin:12mm auto;
+    box-shadow:0 6px 30px rgba(0,0,0,.15);
+    border:2px solid #0f382a;
+    border-radius:3mm;
     overflow:hidden;
     display:flex;
     flex-direction:column;
@@ -77,58 +75,71 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
 
   /* === TOP HEADER BAR === */
   .header{
-    background:${sourceColor};
+    background:#0f382a;
     color:#fff;
-    padding:5mm 7mm;
+    padding:4mm 6mm;
     display:flex;
     align-items:center;
     justify-content:space-between;
-  }
-  .header-logo{
-    display:flex;
-    align-items:center;
-    gap:4mm;
-  }
-  .header-logo-img{
-    width:55px;height:55px;
-    background:#fff;
-    border-radius:3mm;
-    display:flex;align-items:center;justify-content:center;
-    overflow:hidden;padding:2px;
+    border-bottom:2px solid #c8972e;
   }
   .header-hall-info{
     text-align:right;
+    min-width:45mm;
   }
-  .hall-name-big{font-size:18px;font-weight:900;letter-spacing:.3px;}
-  .hall-subtitle{font-size:10px;opacity:.75;margin-top:1mm;}
-  .hall-contact{font-size:9px;opacity:.65;margin-top:1mm;direction:ltr;text-align:right;}
+  .hall-name-big{font-size:16px;font-weight:900;letter-spacing:.3px;color:#fff;}
+  .hall-subtitle{font-size:9.5px;color:#c8972e;margin-top:1mm;font-weight:700;}
+  .hall-contact{font-size:8.5px;opacity:.8;margin-top:1mm;}
 
   .header-center{
     text-align:center;
     flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
   }
-  .receipt-type-ar{font-size:22px;font-weight:900;letter-spacing:1px;}
-  .receipt-type-en{font-size:10px;opacity:.7;margin-top:1mm;letter-spacing:2px;text-transform:uppercase;}
+  .header-logo-img{
+    height:50px;
+    max-width:110px;
+    object-fit:contain;
+    display:block;
+    margin-bottom:2px;
+  }
+  .receipt-type-ar{font-size:18px;font-weight:900;letter-spacing:.5px;color:#ffffff;}
+  .receipt-type-en{font-size:8.5px;color:#c8972e;letter-spacing:1.5px;font-weight:700;}
 
   .header-right{
     text-align:left;
-    min-width:50mm;
+    min-width:45mm;
   }
-  .rec-num-label{font-size:9px;opacity:.7;margin-bottom:1mm;}
+  .rec-num-label{font-size:8.5px;opacity:.8;margin-bottom:1mm;}
   .rec-num-val{
-    font-size:15px;font-weight:800;letter-spacing:1.5px;
-    background:rgba(255,255,255,.18);
+    font-size:13px;font-weight:900;letter-spacing:1px;
+    background:rgba(255,255,255,.15);
+    border:1px solid #c8972e;
     padding:1.5mm 3mm;border-radius:2mm;
     display:inline-block;
   }
   .source-badge{
     margin-top:2mm;
-    font-size:9px;
-    background:rgba(255,255,255,.15);
-    border:1px solid rgba(255,255,255,.3);
-    border-radius:10px;
+    font-size:8.5px;
+    background:#c8972e;
+    color:#0f382a;
+    font-weight:800;
+    border-radius:4px;
     padding:1mm 3mm;
     display:inline-block;
+  }
+
+  /* Date Bar */
+  .date-bar{
+    background:#f8fafc;
+    border-bottom:1px solid #e2e8f0;
+    padding:2mm 6mm;
+    display:flex;
+    justify-content:space-between;
+    font-size:9px;
+    color:#334155;
   }
 
   /* === BODY === */
@@ -141,100 +152,99 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
   /* Left column — client & booking info */
   .col-left{
     flex:1;
-    padding:5mm 5mm 4mm 5mm;
-    border-left:1px solid #eee;
+    padding:3.5mm 5mm;
+    border-left:1px solid #e2e8f0;
   }
   /* Right column — amount & payment */
   .col-right{
-    width:72mm;
-    padding:5mm;
+    width:70mm;
+    padding:3.5mm;
     display:flex;
     flex-direction:column;
-    gap:3mm;
-    background:${sourceLightColor};
+    gap:2.5mm;
+    background:#f0fdf4;
   }
 
   .section-title{
-    font-size:9px;
-    font-weight:700;
-    color:${sourceColor};
+    font-size:8.5px;
+    font-weight:800;
+    color:#0f382a;
     text-transform:uppercase;
-    letter-spacing:.5px;
     margin-bottom:2mm;
     padding-bottom:1mm;
-    border-bottom:1.5px solid ${sourceBorderColor};
+    border-bottom:1.5px solid #c8972e;
   }
 
   .info-grid{
     display:grid;
     grid-template-columns:auto 1fr;
-    gap:1mm 3mm;
-    font-size:10px;
+    gap:1.5mm 3mm;
+    font-size:9.5px;
   }
-  .ig-label{color:#888;white-space:nowrap;}
-  .ig-val{font-weight:600;color:#111;}
+  .ig-label{color:#64748b;white-space:nowrap;font-size:8.5px;}
+  .ig-val{font-weight:700;color:#0f172a;}
 
   /* Amount block */
   .amount-box{
-    background:${sourceColor};
+    background:#0f382a;
     color:#fff;
+    border:1px solid #c8972e;
     border-radius:3mm;
-    padding:4mm;
+    padding:3mm;
     text-align:center;
   }
-  .am-label{font-size:9px;opacity:.75;margin-bottom:1.5mm;}
-  .am-val{font-size:26px;font-weight:900;letter-spacing:.5px;line-height:1;}
-  .am-currency{font-size:13px;opacity:.85;margin-top:.5mm;}
-  .am-words{font-size:9px;opacity:.8;margin-top:2mm;line-height:1.5;}
+  .am-label{font-size:8.5px;color:#c8972e;font-weight:700;margin-bottom:1mm;}
+  .am-val{font-size:22px;font-weight:900;letter-spacing:.5px;line-height:1;color:#fff;}
+  .am-currency{font-size:11px;opacity:.9;margin-top:.5mm;}
+  .am-words{font-size:8.5px;color:#fef08a;margin-top:2mm;line-height:1.4;font-weight:600;}
 
   /* Payment method badge */
   .pay-method-box{
-    border:1.5px solid ${sourceBorderColor};
+    border:1px solid #cbd5e1;
     border-radius:2mm;
-    padding:3mm;
+    padding:2.5mm;
     text-align:center;
     background:#fff;
   }
-  .pm-label{font-size:8px;color:#888;margin-bottom:1mm;}
-  .pm-val{font-size:13px;font-weight:800;color:${sourceColor};}
+  .pm-label{font-size:8px;color:#64748b;margin-bottom:.5mm;}
+  .pm-val{font-size:11.5px;font-weight:800;color:#0f382a;}
 
   /* Totals mini */
-  .totals-mini{font-size:9.5px;}
-  .totals-row{display:flex;justify-content:space-between;padding:1mm 0;border-bottom:1px dashed #ddd;}
-  .totals-row:last-child{border-bottom:none;font-weight:700;}
-  .tr-label{color:#666;}
-  .tr-val{font-weight:600;}
-  .tr-val.green{color:#1a7a3c;}
-  .tr-val.red{color:#c0392b;}
+  .totals-mini{font-size:9px;background:#fff;border:1px solid #cbd5e1;border-radius:2mm;padding:2mm 3mm;}
+  .totals-row{display:flex;justify-content:space-between;padding:.8mm 0;border-bottom:1px dashed #e2e8f0;}
+  .totals-row:last-child{border-bottom:none;font-weight:800;padding-top:1.5mm;}
+  .tr-label{color:#64748b;}
+  .tr-val{font-weight:700;}
+  .tr-val.green{color:#15803d;}
+  .tr-val.red{color:#b91c1c;}
 
   /* === FOOTER === */
   .footer{
-    border-top:2px dashed ${sourceBorderColor};
-    padding:3mm 7mm;
+    border-top:1.5px solid #cbd5e1;
+    padding:2.5mm 6mm;
     display:flex;
     justify-content:space-between;
     align-items:center;
     background:#fafafa;
   }
-  .sign-area{display:flex;gap:8mm;}
+  .sign-area{display:flex;gap:6mm;}
   .sign-box{text-align:center;}
-  .sign-label{font-size:8px;color:#888;margin-bottom:1mm;}
-  .sign-line{border-bottom:1.5px solid #333;width:35mm;height:8mm;margin-bottom:1mm;}
+  .sign-label{font-size:8px;color:#64748b;margin-bottom:1mm;font-weight:700;}
+  .sign-line{border-bottom:1px dashed #94a3b8;width:30mm;height:6mm;margin-bottom:1mm;}
   .stamp-circle{
-    width:18mm;height:18mm;border-radius:50%;
-    border:1.5px dashed #bbb;
+    width:15mm;height:15mm;border-radius:50%;
+    border:1.5px dashed #c8972e;
     display:flex;align-items:center;justify-content:center;
-    font-size:7px;color:#bbb;
+    font-size:7px;color:#c8972e;font-weight:700;
   }
-  .footer-note{font-size:8px;color:#aaa;text-align:center;max-width:60mm;line-height:1.5;}
+  .footer-note{font-size:7.5px;color:#64748b;text-align:center;max-width:55mm;line-height:1.4;}
 
-  /* gold bottom strip */
-  .gold-strip{background:#c8972e;height:2.5mm;}
+  .gold-strip{background:#0f382a;height:2mm;border-top:1px solid #c8972e;}
 </style>
 </head>
 <body>
 <div class="no-print">
-  <button class="btn-print" onclick="window.print()">🖨️ طباعة / PDF</button>
+  <button class="btn-print" onclick="window.print()">🖨️ طباعة السند / PDF</button>
   <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
 </div>
 
@@ -242,29 +252,30 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
 
   <!-- HEADER -->
   <div class="header">
-    <!-- Hall info (right side in RTL) -->
     <div class="header-hall-info">
-      <div class="hall-name-big">${esc(hs.hall_name || 'قاعة الأفراح')}</div>
-      ${hs.city ? `<div class="hall-subtitle">${esc(hs.city)}</div>` : '<div class="hall-subtitle">قاعة أفراح ومناسبات</div>'}
-      ${hs.phone ? `<div class="hall-contact">📞 ${esc(hs.phone)}</div>` : ''}
+      <div class="hall-name-big">${esc(hallName)}</div>
+      <div class="hall-subtitle">${esc(hs.city || 'القصيم - بريدة')}</div>
+      ${hs.phone ? `<div class="hall-contact">هاتف: ${esc(hs.phone)}</div>` : ''}
     </div>
 
-    <!-- Center: logo + title -->
     <div class="header-center">
-      <div class="header-logo-img" style="margin:0 auto 3mm;">
-        ${logoHtml}
-      </div>
-      <div class="receipt-type-ar">إيصال سداد</div>
-      <div class="receipt-type-en">Payment Receipt</div>
+      <img src="${esc(logoSrc)}" alt="شعار القاعة" class="header-logo-img"/>
+      <div class="receipt-type-ar">سند قبض مالي معتمد</div>
+      <div class="receipt-type-en">OFFICIAL PAYMENT RECEIPT</div>
     </div>
 
-    <!-- Receipt number (left side in RTL) -->
     <div class="header-right">
-      <div class="rec-num-label">رقم الإيصال</div>
+      <div class="rec-num-label">رقم السند</div>
       <div class="rec-num-val">${esc(receiptNum)}</div>
-      <div class="source-badge">📦 ${sourceLabel}</div>
-      ${hs.commercial_register ? `<div style="font-size:8px;opacity:.6;margin-top:2mm;">س.ت: ${esc(hs.commercial_register)}</div>` : ''}
+      <div><span class="source-badge">${esc(sourceLabel)}</span></div>
     </div>
+  </div>
+
+  <!-- DATE BAR -->
+  <div class="date-bar">
+    <span>تاريخ السند: <strong>${esc(payDateHijri)} هـ</strong> (${esc(fd(payDateGreg))} م)</span>
+    ${hs.commercial_register ? `<span>س.ت: <strong>${esc(hs.commercial_register)}</strong></span>` : ''}
+    ${hs.tax_number ? `<span>الرقم الضريبي: <strong>${esc(hs.tax_number)}</strong></span>` : ''}
   </div>
 
   <!-- BODY -->
@@ -284,33 +295,24 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
         <span class="ig-val">${esc(booking.booking_number || '-')}</span>
 
         <span class="ig-label">نوع المناسبة:</span>
-        <span class="ig-val">${esc(booking.event_type || '-')}</span>
+        <span class="ig-val">${esc(booking.event_type || '-')}${booking.hall_section ? ` — ${esc(booking.hall_section)}` : ''}</span>
 
-        <span class="ig-label">قسم القاعة:</span>
-        <span class="ig-val">${esc(booking.hall_section || '-')}</span>
-
-        <span class="ig-label">موعد المناسبة (هجري):</span>
-        <span class="ig-val">${esc(booking.event_date_hijri || '-')}</span>
-
-        <span class="ig-label">موعد المناسبة (ميلادي):</span>
-        <span class="ig-val">${esc(fd(booking.event_date))}</span>
+        <span class="ig-label">موعد المناسبة:</span>
+        <span class="ig-val">${esc(booking.event_date_hijri || '')} (${esc(fd(booking.event_date))})</span>
       </div>
 
-      <div style="margin-top:3mm;">
-        <div class="section-title">بيانات السداد</div>
+      <div style="margin-top:2.5mm;">
+        <div class="section-title">بيانات العملية</div>
         <div class="info-grid">
-          <span class="ig-label">تاريخ السداد (هجري):</span>
-          <span class="ig-val">${esc(payDateHijri)}</span>
-
-          <span class="ig-label">تاريخ السداد (ميلادي):</span>
-          <span class="ig-val">${esc(fd(payDateGreg))}</span>
+          <span class="ig-label">طريقة التحصيل:</span>
+          <span class="ig-val">${esc(payment.payment_method || '-')}</span>
 
           ${payment.reference_number ? `
           <span class="ig-label">رقم المرجع:</span>
           <span class="ig-val">${esc(payment.reference_number)}</span>` : ''}
 
           ${cleanNote ? `
-          <span class="ig-label">ملاحظات:</span>
+          <span class="ig-label">البيان / ملاحظات:</span>
           <span class="ig-val">${esc(cleanNote)}</span>` : ''}
         </div>
       </div>
@@ -319,25 +321,19 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
     <!-- Right: Amount & payment method -->
     <div class="col-right">
       <div class="amount-box">
-        <div class="am-label">المبلغ المسدد</div>
+        <div class="am-label">المبلغ المقبوض</div>
         <div class="am-val">${fc(payment.amount)}</div>
         <div class="am-currency">ريال سعودي</div>
         <div class="am-words">${esc(amountWords)}</div>
       </div>
 
-      <div class="pay-method-box">
-        <div class="pm-label">طريقة الدفع</div>
-        <div class="pm-val">${esc(payment.payment_method || '-')}</div>
-      </div>
-
       <div class="totals-mini">
-        <div class="section-title">ملخص الحساب</div>
         <div class="totals-row">
-          <span class="tr-label">المبلغ الكلي:</span>
+          <span class="tr-label">إجمالي العقد:</span>
           <span class="tr-val">${fc(booking.final_amount)} ر.س</span>
         </div>
         <div class="totals-row">
-          <span class="tr-label">المسدد:</span>
+          <span class="tr-label">إجمالي المسدد:</span>
           <span class="tr-val green">${fc(booking.paid_amount)} ر.س</span>
         </div>
         <div class="totals-row">
@@ -352,31 +348,35 @@ export function buildPaymentReceipt(hallSettings, booking, payment, source = 'ca
   <div class="footer">
     <div class="sign-area">
       <div class="sign-box">
-        <div class="sign-label">مستلم المبلغ</div>
+        <div class="sign-label">المحاسب المستلم</div>
         <div class="sign-line"></div>
-        <div class="sign-label">الاسم والتوقيع</div>
       </div>
       <div class="sign-box">
-        <div class="sign-label">ختم المؤسسة</div>
-        <div class="stamp-circle">الختم الرسمي</div>
+        <div class="stamp-circle">ختم المنشأة</div>
       </div>
     </div>
 
     <div class="footer-note">
-      ${hs.address ? `📍 ${esc(hs.address)}` : ''}
-      ${hs.iban ? `<br/>IBAN: ${esc(hs.iban)}` : ''}
-      ${hs.bank_name ? `<br/>${esc(hs.bank_name)}` : ''}
+      ${hs.address ? `${esc(hs.address)}` : ''}
+      ${hs.phone ? ` • هاتف: ${esc(hs.phone)}` : ''}
+      <br/>يعتبر هذا السند وثيقة قبض مالية رسمية
     </div>
 
     <div style="text-align:center;">
-      <div class="sign-label" style="margin-bottom:1mm;">توقيع العميل</div>
+      <div class="sign-label">توقيع العميل / المودع</div>
       <div class="sign-line"></div>
-      <div class="sign-label">الاسم والتوقيع</div>
     </div>
   </div>
 
   <div class="gold-strip"></div>
 </div>
+
+<script>
+  window.onload = function() {
+    window.focus();
+    setTimeout(function() { window.print(); }, 400);
+  };
+</script>
 </body>
 </html>`;
 }
