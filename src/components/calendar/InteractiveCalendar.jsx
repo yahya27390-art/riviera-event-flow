@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Calendar as CalendarIcon, ChevronRight, ChevronLeft, 
-  Sparkles, CheckCircle2, Clock, Users, Plus, ArrowRight,
+  ChevronRight, ChevronLeft, 
+  CheckCircle2, Clock, Plus, ArrowRight,
   Eye, CalendarCheck, Moon, Sun, LayoutGrid, List,
-  MessageSquare, Phone, MapPin, AlertCircle, ShieldCheck, Crown
+  MessageSquare, Crown
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import moment from 'moment-hijri';
 import { HIJRI_MONTHS, HIJRI_DAYS, getHijriMonthGrid, gregorianToHijri } from '@/lib/hijri';
@@ -18,47 +18,38 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { cn } from '@/lib/utils';
 
-/**
- * Returns distinct luxury styling and labels for hall sections:
- * - 👑 رجال ونساء (القاعة بالكامل)
- * - 👔 رجال فقط (قسم الرجال)
- * - 👗 نساء فقط (قسم النساء)
- */
 export function getSectionBadge(section) {
   const s = (section || '').trim();
   if (!s || s === 'رجال ونساء' || s.includes('كامل') || s === 'القسمين' || s.includes('معاً')) {
     return {
       type: 'both',
-      label: '👑 القاعة بالكامل (رجال ونساء)',
-      shortLabel: '👑 رجال ونساء',
-      tagText: 'رجال ونساء',
-      badgeClass: 'bg-amber-500/20 text-amber-950 dark:text-amber-200 border-amber-500/50 font-black',
-      pillClass: 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black border-amber-400',
+      label: 'رجال ونساء',
+      shortLabel: 'رجال ونساء',
+      badgeClass: 'bg-amber-500/20 text-amber-900 dark:text-amber-200 border-amber-500/40 font-bold',
       dotClass: 'bg-amber-500',
+      cellClass: 'bg-amber-500/15 border-amber-400',
       icon: '👑',
     };
   }
   if (s.includes('نساء')) {
     return {
       type: 'women',
-      label: '👗 قسم النساء فقط',
-      shortLabel: '👗 نساء فقط',
-      tagText: 'نساء فقط',
-      badgeClass: 'bg-pink-500/20 text-pink-950 dark:text-pink-200 border-pink-500/50 font-black',
-      pillClass: 'bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black border-pink-400',
+      label: 'نساء فقط',
+      shortLabel: 'نساء',
+      badgeClass: 'bg-pink-500/20 text-pink-900 dark:text-pink-200 border-pink-500/40 font-bold',
       dotClass: 'bg-pink-500',
-      icon: '👗',
+      cellClass: 'bg-pink-500/15 border-pink-400',
+      icon: '🌸',
     };
   }
   if (s.includes('رجال')) {
     return {
       type: 'men',
-      label: '👔 قسم الرجال فقط',
-      shortLabel: '👔 رجال فقط',
-      tagText: 'رجال فقط',
-      badgeClass: 'bg-emerald-600/20 text-emerald-950 dark:text-emerald-200 border-emerald-500/50 font-black',
-      pillClass: 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black border-emerald-400',
+      label: 'رجال فقط',
+      shortLabel: 'رجال',
+      badgeClass: 'bg-emerald-600/20 text-emerald-900 dark:text-emerald-200 border-emerald-500/40 font-bold',
       dotClass: 'bg-emerald-500',
+      cellClass: 'bg-emerald-500/15 border-emerald-400',
       icon: '👔',
     };
   }
@@ -66,11 +57,10 @@ export function getSectionBadge(section) {
     type: 'other',
     label: s,
     shortLabel: s,
-    tagText: s,
-    badgeClass: 'bg-primary/20 text-primary border-primary/50 font-bold',
-    pillClass: 'bg-primary text-primary-foreground font-bold',
+    badgeClass: 'bg-primary/20 text-primary border-primary/40 font-bold',
     dotClass: 'bg-primary',
-    icon: '✨',
+    cellClass: 'bg-primary/15 border-primary/40',
+    icon: '📌',
   };
 }
 
@@ -99,8 +89,8 @@ export function getAvailableSections(dayBookings) {
 
 export default function InteractiveCalendar({ bookings = [] }) {
   const navigate = useNavigate();
-  const [calMode, setCalMode] = useState('hijri'); // 'hijri' | 'gregorian'
-  const [viewType, setViewType] = useState('grid'); // 'grid' | 'agenda'
+  const [calMode, setCalMode] = useState('hijri');
+  const [viewType, setViewType] = useState('grid');
   const [calViewDate, setCalViewDate] = useState(new Date());
   const [selectedDialogDate, setSelectedDialogDate] = useState(null);
 
@@ -119,16 +109,14 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'ملغي'), [bookings]);
 
-  // Gregorian Calendar Grid
   const calDays = useMemo(() => {
     const start = startOfMonth(calViewDate);
     const end = endOfMonth(calViewDate);
     const days = eachDayOfInterval({ start, end });
-    const startDow = (start.getDay() + 1) % 7; // Saturday = 0 in Saudi week
+    const startDow = (start.getDay() + 1) % 7;
     return { days, startDow };
   }, [calViewDate]);
 
-  // Hijri Calendar Grid
   const hijriCalDays = useMemo(() => {
     const { cells } = getHijriMonthGrid(hijriViewYear, hijriViewMonth);
     return cells;
@@ -136,28 +124,16 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
   const prevMonth = () => {
     if (calMode === 'hijri') {
-      if (hijriViewMonth === 1) { 
-        setHijriViewMonth(12); 
-        setHijriViewYear(y => y - 1); 
-      } else {
-        setHijriViewMonth(m => m - 1);
-      }
-    } else {
-      setCalViewDate(d => subMonths(d, 1));
-    }
+      if (hijriViewMonth === 1) { setHijriViewMonth(12); setHijriViewYear(y => y - 1); }
+      else setHijriViewMonth(m => m - 1);
+    } else setCalViewDate(d => subMonths(d, 1));
   };
 
   const nextMonth = () => {
     if (calMode === 'hijri') {
-      if (hijriViewMonth === 12) { 
-        setHijriViewMonth(1); 
-        setHijriViewYear(y => y + 1); 
-      } else {
-        setHijriViewMonth(m => m + 1);
-      }
-    } else {
-      setCalViewDate(d => addMonths(d, 1));
-    }
+      if (hijriViewMonth === 12) { setHijriViewMonth(1); setHijriViewYear(y => y + 1); }
+      else setHijriViewMonth(m => m + 1);
+    } else setCalViewDate(d => addMonths(d, 1));
   };
 
   const resetToToday = () => {
@@ -170,44 +146,32 @@ export default function InteractiveCalendar({ bookings = [] }) {
   const getBookingsForDate = (dateStr) => activeBookings.filter(b => b.event_date === dateStr);
   const isTodayDate = (dateStr) => dateStr === todayStr;
 
-  // Month Statistics
   const monthStats = useMemo(() => {
-    let daysCount = 30;
     let bookedDays = 0;
     let partialDays = 0;
-
-    if (calMode === 'hijri') {
-      hijriCalDays.forEach(day => {
-        if (!day) return;
+    const cells = calMode === 'hijri' ? hijriCalDays : calDays.days;
+    cells.forEach(day => {
+      if (!day) return;
+      let gDate;
+      if (calMode === 'hijri') {
         const hijriStr = `${hijriViewYear}/${String(hijriViewMonth).padStart(2,'0')}/${String(day).padStart(2,'0')}`;
-        const gDate = moment(hijriStr, 'iYYYY/iMM/iDD').format('YYYY-MM-DD');
-        const dayBookings = getBookingsForDate(gDate);
-        const status = getDayStatus(dayBookings);
-        if (status === 'full') bookedDays++;
-        if (status === 'partial') partialDays++;
-      });
-    } else {
-      calDays.days.forEach(day => {
-        const gDate = format(day, 'yyyy-MM-dd');
-        const dayBookings = getBookingsForDate(gDate);
-        const status = getDayStatus(dayBookings);
-        if (status === 'full') bookedDays++;
-        if (status === 'partial') partialDays++;
-      });
-      daysCount = calDays.days.length;
-    }
-
-    const availableDays = Math.max(0, daysCount - bookedDays - partialDays);
-    return { daysCount, bookedDays, partialDays, availableDays };
+        gDate = moment(hijriStr, 'iYYYY/iMM/iDD').format('YYYY-MM-DD');
+      } else {
+        gDate = format(day, 'yyyy-MM-dd');
+      }
+      const status = getDayStatus(getBookingsForDate(gDate));
+      if (status === 'full') bookedDays++;
+      else if (status === 'partial') partialDays++;
+    });
+    const total = calMode === 'hijri' ? hijriCalDays.filter(Boolean).length : calDays.days.length;
+    return { bookedDays, partialDays, availableDays: Math.max(0, total - bookedDays - partialDays) };
   }, [calMode, hijriCalDays, calDays, hijriViewYear, hijriViewMonth, activeBookings]);
 
-  // Month bookings for Agenda/List view
   const currentMonthBookings = useMemo(() => {
     return activeBookings.filter(b => {
       if (!b.event_date) return false;
       if (calMode === 'hijri') {
-        let bYear = null;
-        let bMonth = null;
+        let bYear, bMonth;
         if (b.event_date_hijri && b.event_date_hijri.includes('/')) {
           const parts = b.event_date_hijri.split('/');
           bYear = parseInt(parts[0], 10);
@@ -217,31 +181,21 @@ export default function InteractiveCalendar({ bookings = [] }) {
             const m = moment(b.event_date, 'YYYY-MM-DD');
             bYear = parseInt(m.format('iYYYY'), 10);
             bMonth = parseInt(m.format('iMM'), 10);
-          } catch {
-            return false;
-          }
+          } catch { return false; }
         }
         return bYear === hijriViewYear && bMonth === hijriViewMonth;
       } else {
-        const monthPrefix = format(calViewDate, 'yyyy-MM');
-        return b.event_date.startsWith(monthPrefix);
+        return b.event_date.startsWith(format(calViewDate, 'yyyy-MM'));
       }
     }).sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
   }, [activeBookings, calMode, calViewDate, hijriViewYear, hijriViewMonth]);
 
-  // Handle cell click
-  const handleCellClick = (gregorianDate) => {
-    setInlineSelectedDate(gregorianDate);
-  };
-
-  const handleOpenDialog = (gregorianDate) => {
-    setSelectedDialogDate(gregorianDate);
-  };
+  const handleCellClick = (gregorianDate) => setInlineSelectedDate(gregorianDate);
+  const handleOpenDialog = (gregorianDate) => setSelectedDialogDate(gregorianDate);
 
   const openQuickBookingForDate = (gregDate) => {
-    const hDate = gregorianToHijri(gregDate);
     setQuickBookPresetDate(gregDate);
-    setQuickBookPresetHijri(hDate);
+    setQuickBookPresetHijri(gregorianToHijri(gregDate));
     setShowQuickBook(true);
   };
 
@@ -250,33 +204,27 @@ export default function InteractiveCalendar({ bookings = [] }) {
     const cleanPhone = b.customer_phone.replace(/\D/g, '');
     const fullPhone = cleanPhone.startsWith('966') ? cleanPhone : `966${cleanPhone.replace(/^0+/, '')}`;
     const text = encodeURIComponent(
-      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${b.customer_name}\nنود تذكيركم بموعد حجزكم في قاعة قمة الريف بتاريخ ${b.event_date_hijri || gregorianToHijri(b.event_date)} هـ.\nالقسم المحجوز: ${b.hall_section || 'كامل القاعة'}\nالمبلغ المتبقي: ${formatCurrency(b.remaining_amount)}\nنسعد بخدمتكم دائماً!`
+      `السلام عليكم ورحمة الله وبركاته\nالأستاذ/ة: ${b.customer_name}\nنود تذكيركم بموعد حجزكم بتاريخ ${b.event_date_hijri || gregorianToHijri(b.event_date)} هـ.\nالقسم: ${b.hall_section || 'كامل القاعة'}\nالمتبقي: ${formatCurrency(b.remaining_amount)}`
     );
     window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
   };
 
-  // Render a day cell in the calendar grid with high-definition styling and prominent hall labels
+  // ─── Minimal Day Cell: clean & mobile-optimised ───────────────────────────
   const renderDayCell = (dayNumber, dayBookings, isToday, gregorianDate, dayOfWeekName) => {
     const status = getDayStatus(dayBookings);
     const isWeekend = dayOfWeekName === 'الخميس' || dayOfWeekName === 'الجمعة';
     const isSelected = inlineSelectedDate === gregorianDate;
 
-    let cellBg = 'bg-card hover:bg-muted/40 border-border/70';
-    let ringStyle = '';
+    // Background based on booking status
+    let bg = isWeekend ? 'bg-amber-50 dark:bg-amber-950/10' : 'bg-card';
+    if (status === 'full') bg = 'bg-rose-50 dark:bg-rose-950/20';
+    if (status === 'partial') bg = 'bg-amber-50 dark:bg-amber-950/20';
+    if (isSelected) bg = 'bg-amber-500/15 dark:bg-amber-900/30';
+    if (isToday && !isSelected) bg = 'bg-emerald-50 dark:bg-emerald-950/20';
 
-    if (isSelected) {
-      ringStyle = 'ring-2.5 ring-amber-500 shadow-lg shadow-amber-500/25 border-amber-500 bg-amber-500/10 dark:bg-amber-950/30';
-    } else if (isToday) {
-      ringStyle = 'ring-2 ring-emerald-500/90 border-emerald-500/60 bg-emerald-500/5';
-    }
-
-    if (status === 'full') {
-      cellBg = isSelected ? cellBg : 'bg-rose-500/10 dark:bg-rose-950/25 border-rose-300 dark:border-rose-900/80 hover:bg-rose-500/15';
-    } else if (status === 'partial') {
-      cellBg = isSelected ? cellBg : 'bg-amber-500/10 dark:bg-amber-950/25 border-amber-300 dark:border-amber-900/80 hover:bg-amber-500/15';
-    } else if (isWeekend && !isSelected) {
-      cellBg = 'bg-amber-500/5 hover:bg-amber-500/10 border-amber-500/20';
-    }
+    let ring = '';
+    if (isSelected) ring = 'ring-2 ring-amber-500';
+    else if (isToday) ring = 'ring-2 ring-emerald-500';
 
     return (
       <button
@@ -285,86 +233,55 @@ export default function InteractiveCalendar({ bookings = [] }) {
         onClick={() => handleCellClick(gregorianDate)}
         onDoubleClick={() => handleOpenDialog(gregorianDate)}
         className={cn(
-          "group relative rounded-2xl p-1.5 sm:p-2.5 min-h-[82px] sm:min-h-[105px] flex flex-col justify-between text-right transition-all duration-200 cursor-pointer border shadow-xs select-none",
-          cellBg, ringStyle,
-          "hover:-translate-y-0.5 active:scale-[0.98]"
+          "relative rounded-xl border p-1 flex flex-col items-center gap-0.5",
+          "min-h-[56px] sm:min-h-[72px] transition-all duration-150 active:scale-95 cursor-pointer select-none",
+          bg, ring,
+          isSelected ? 'border-amber-400' : isToday ? 'border-emerald-400' : 'border-border/60'
         )}
       >
-        {/* Top bar: Crisp Hijri Day Number + Today Pill + Status Indicators */}
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1.5">
-            <span className={cn(
-              "text-base sm:text-lg font-black tracking-tight font-sans leading-none",
-              isToday ? "text-emerald-600 dark:text-emerald-400" : isSelected ? "text-amber-600 dark:text-amber-400" : "text-foreground"
-            )}>
-              {dayNumber}
-            </span>
-            {isToday && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-600 text-white font-black shadow-xs">
-                اليوم
-              </span>
-            )}
-          </div>
+        {/* Day number */}
+        <span className={cn(
+          "text-sm sm:text-base font-black leading-none mt-1",
+          isToday ? "text-emerald-600 dark:text-emerald-400"
+            : isSelected ? "text-amber-600 dark:text-amber-400"
+            : "text-foreground"
+        )}>
+          {dayNumber}
+        </span>
 
-          <div className="flex items-center gap-1">
-            {status === 'full' && (
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-xs shadow-rose-500/50 animate-pulse" title="القاعة محجوزة بالكامل" />
-            )}
-            {status === 'partial' && (
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs shadow-amber-500/50" title="حجز جزئي - قسم متاح" />
-            )}
-            {status === 'available' && isWeekend && (
-              <span className="text-[9px] text-amber-600/80 dark:text-amber-400/80 font-bold hidden sm:inline-block">عطلة</span>
-            )}
-          </div>
-        </div>
+        {/* Today dot */}
+        {isToday && !isSelected && (
+          <span className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5" />
+        )}
 
-        {/* Middle: Prominent Booked Halls / Sections directly in the cell */}
-        <div className="w-full mt-1.5 space-y-1">
-          {dayBookings.length > 0 ? (
-            <>
-              {dayBookings.slice(0, 2).map((b, idx) => {
-                const sec = getSectionBadge(b.hall_section);
-                return (
-                  <div 
-                    key={idx}
-                    className={cn(
-                      "w-full px-1.5 py-1 rounded-xl text-[9.5px] sm:text-[11px] font-black border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-1 shadow-2xs transition-all",
-                      sec.badgeClass
-                    )}
-                  >
-                    {/* Explicit Section Name */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <span className={cn("w-1.5 h-1.5 rounded-full", sec.dotClass)}></span>
-                      <span className="font-black text-[9px] sm:text-[10px] tracking-tight text-foreground">
-                        {sec.shortLabel}
-                      </span>
-                    </div>
-
-                    {/* Customer Name */}
-                    <span className="truncate font-bold text-[8.5px] sm:text-[9.5px] opacity-90 text-foreground">
-                      {b.customer_name}
-                    </span>
-                  </div>
-                );
-              })}
-              {dayBookings.length > 2 && (
-                <div className="text-[9px] text-muted-foreground font-black text-center bg-muted/60 rounded-md py-0.5">
-                  +{dayBookings.length - 2} حجز إضافي
+        {/* Section indicators: compact colored dots/pills */}
+        {dayBookings.length > 0 && (
+          <div className="flex flex-col items-center gap-0.5 w-full px-0.5">
+            {dayBookings.slice(0, 2).map((b, i) => {
+              const sec = getSectionBadge(b.hall_section);
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "w-full flex items-center gap-0.5 px-1 rounded-md text-[8px] sm:text-[9px] font-bold truncate leading-tight py-0.5 border",
+                    sec.cellClass
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", sec.dotClass)} />
+                  <span className="truncate">{sec.icon} {sec.shortLabel}</span>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity text-[10.5px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center justify-center gap-1 py-1">
-              <span>+ متاح للحجز</span>
-            </div>
-          )}
-        </div>
+              );
+            })}
+            {dayBookings.length > 2 && (
+              <span className="text-[8px] text-muted-foreground font-bold">+{dayBookings.length - 2}</span>
+            )}
+          </div>
+        )}
       </button>
     );
   };
 
-  // Selected Day data for inline inspector
+  // ─── Selected day data ──────────────────────────────────────────────────────
   const selectedDayBookings = getBookingsForDate(inlineSelectedDate);
   const selectedDayStatus = getDayStatus(selectedDayBookings);
   const selectedDayAvailableSections = getAvailableSections(selectedDayBookings);
@@ -372,348 +289,225 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
   return (
     <>
-      <Card className="glass-card border-amber-500/20 shadow-2xl overflow-hidden rounded-3xl bg-gradient-to-b from-card via-card to-card/95">
-        {/* Luxury Header Toolbar */}
-        <CardHeader className="p-4 sm:p-6 border-b border-border/60 bg-gradient-to-r from-emerald-950/20 via-amber-500/10 to-card">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            
-            {/* Title & Statement (اسم الشهر ورقم الشهر الهجري المعتمد) */}
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
-                  <Crown className="w-6 h-6 stroke-[2.5]" />
-                </div>
-                <div>
-                  <CardTitle className="text-lg sm:text-2xl font-black text-foreground flex items-center gap-2">
-                    <span>جدول حجوزات وتوافر القاعة</span>
-                    <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[11px] font-black px-2.5 py-0.5">
-                      التقويم الهجري المعتمد
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm mt-1 text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
-                    <span>مواعيد</span>
-                    <strong className="text-amber-600 dark:text-amber-400 font-extrabold text-sm">
-                      {calMode === 'hijri' 
-                        ? `شهر ${HIJRI_MONTHS[hijriViewMonth - 1]} (الشهر ${hijriViewMonth}) لعام ${hijriViewYear} هـ` 
-                        : `${format(calViewDate, 'MMMM yyyy', { locale: ar })} م`}
-                    </strong>
-                    <span className="hidden sm:inline">• تصفح الأيام وحالة الأقسام المحجوزة</span>
-                  </CardDescription>
-                </div>
+      <Card className="border-border/60 shadow-xl rounded-3xl overflow-hidden">
+
+        {/* ── HEADER ──────────────────────────────────────────────────────── */}
+        <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/50 bg-gradient-to-r from-emerald-950/10 via-amber-500/5 to-card">
+
+          {/* Row 1: Title + View switcher */}
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center flex-shrink-0 border border-amber-500/30">
+                <Crown className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm sm:text-base font-black text-foreground leading-tight">جدول حجوزات القاعة</p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-bold leading-tight">
+                  {calMode === 'hijri'
+                    ? `${HIJRI_MONTHS[hijriViewMonth - 1]} ${hijriViewYear} هـ`
+                    : format(calViewDate, 'MMMM yyyy', { locale: ar })}
+                </p>
               </div>
             </div>
 
-            {/* Controls Bar: iPhone Segmented Control + Month Navigator + Mode */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              
-              {/* iOS Segmented View Switcher */}
-              <div className="flex items-center p-1 rounded-2xl bg-muted/80 border border-border text-xs shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => setViewType('grid')}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
-                    viewType === 'grid'
-                      ? "bg-card text-foreground shadow-sm font-black border border-border/60 scale-[1.02]"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  title="عرض التقويم الشهري الكامل"
-                >
-                  <LayoutGrid className="w-4 h-4 text-amber-500" />
-                  <span>التقويم الشهري</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewType('agenda')}
-                  className={cn(
-                    "px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 font-bold cursor-pointer",
-                    viewType === 'agenda'
-                      ? "bg-card text-foreground shadow-sm font-black border border-border/60 scale-[1.02]"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  title="عرض قائمة الحجوزات لهذا الشهر"
-                >
-                  <List className="w-4 h-4 text-amber-500" />
-                  <span>قائمة الحجوزات ({currentMonthBookings.length})</span>
-                </button>
-              </div>
-
-              {/* Mode switch (Hijri Primary / Gregorian Secondary) */}
-              <div className="flex items-center p-1 rounded-2xl bg-muted/80 border border-border text-xs">
-                <button
-                  type="button"
-                  onClick={() => setCalMode('hijri')}
-                  className={cn(
-                    "px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer",
-                    calMode === 'hijri' 
-                      ? "bg-emerald-600 text-white shadow-sm font-black" 
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Moon className="w-3.5 h-3.5" /> هجري
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCalMode('gregorian')}
-                  className={cn(
-                    "px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer",
-                    calMode === 'gregorian' 
-                      ? "bg-primary text-primary-foreground shadow-sm font-black" 
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Sun className="w-3.5 h-3.5" /> ميلادي
-                </button>
-              </div>
-
-              {/* Month Navigator (بيانات الشهر العليا برقم الشهر) */}
-              <div className="flex items-center gap-1 bg-card border border-border rounded-2xl p-1 shadow-sm">
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  onClick={prevMonth} 
-                  className="h-8 w-8 text-foreground rounded-xl hover:bg-muted"
-                  title="الشهر السابق"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-
-                {/* الشهر الهجري برقم الشهر في الأعلى واسم الشهر تحته */}
-                <div className="px-3 text-center min-w-[135px] sm:min-w-[160px]">
-                  {calMode === 'hijri' ? (
-                    <div>
-                      <div className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400 leading-tight">
-                        شهر ({hijriViewMonth}) • {hijriViewYear} هـ
-                      </div>
-                      <div className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">
-                        شهر {HIJRI_MONTHS[hijriViewMonth - 1]}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="text-sm sm:text-base font-black text-primary leading-tight">
-                        شهر ({format(calViewDate, 'MM')}) • {format(calViewDate, 'yyyy')} م
-                      </div>
-                      <div className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">
-                        {format(calViewDate, 'MMMM yyyy', { locale: ar })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <Button 
-                  size="icon" 
-                  variant="ghost" 
-                  onClick={nextMonth} 
-                  className="h-8 w-8 text-foreground rounded-xl hover:bg-muted"
-                  title="الشهر التالي"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-              </div>
-
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={resetToToday} 
-                className="text-xs h-9 px-3.5 rounded-xl font-black border-border shadow-2xs"
+            {/* View type toggle (grid / agenda) */}
+            <div className="flex items-center gap-1 p-0.5 rounded-xl bg-muted border border-border text-xs">
+              <button
+                type="button"
+                onClick={() => setViewType('grid')}
+                className={cn("px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all",
+                  viewType === 'grid' ? "bg-card text-foreground shadow-sm border border-border/60" : "text-muted-foreground hover:text-foreground")}
               >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">شهري</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewType('agenda')}
+                className={cn("px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all",
+                  viewType === 'agenda' ? "bg-card text-foreground shadow-sm border border-border/60" : "text-muted-foreground hover:text-foreground")}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">قائمة</span>
+                {currentMonthBookings.length > 0 && (
+                  <span className="bg-amber-500 text-slate-950 text-[10px] font-black rounded-full w-4 h-4 flex items-center justify-center">
+                    {currentMonthBookings.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Row 2: Month nav + Hijri/Gregorian toggle */}
+          <div className="flex items-center justify-between gap-2">
+            {/* Month Navigator */}
+            <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-0.5 shadow-xs">
+              <Button size="icon" variant="ghost" onClick={prevMonth} className="h-8 w-8 rounded-lg">
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+              <div className="px-2 text-center min-w-[100px] sm:min-w-[130px]">
+                <p className="text-xs sm:text-sm font-black text-amber-600 dark:text-amber-400 leading-tight">
+                  {calMode === 'hijri' ? `شهر (${hijriViewMonth}) • ${hijriViewYear} هـ` : `(${format(calViewDate, 'MM')}) • ${format(calViewDate, 'yyyy')} م`}
+                </p>
+                <p className="text-[10px] text-muted-foreground font-semibold leading-tight">
+                  {calMode === 'hijri' ? HIJRI_MONTHS[hijriViewMonth - 1] : format(calViewDate, 'MMMM', { locale: ar })}
+                </p>
+              </div>
+              <Button size="icon" variant="ghost" onClick={nextMonth} className="h-8 w-8 rounded-lg">
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Hijri/Gregorian toggle */}
+              <div className="flex items-center p-0.5 rounded-xl bg-muted border border-border text-xs">
+                <button type="button" onClick={() => setCalMode('hijri')}
+                  className={cn("px-2.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1",
+                    calMode === 'hijri' ? "bg-emerald-600 text-white shadow-xs" : "text-muted-foreground hover:text-foreground")}>
+                  <Moon className="w-3 h-3" /> هجري
+                </button>
+                <button type="button" onClick={() => setCalMode('gregorian')}
+                  className={cn("px-2.5 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1",
+                    calMode === 'gregorian' ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:text-foreground")}>
+                  <Sun className="w-3 h-3" /> ميلادي
+                </button>
+              </div>
+
+              <Button size="sm" variant="outline" onClick={resetToToday} className="h-8 px-3 text-xs rounded-xl font-bold">
                 اليوم
               </Button>
             </div>
           </div>
 
-          {/* Month Quick Status Badges & Section Legend */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-border/50 mt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 ml-1.5 shadow-xs"></span>
-                {monthStats.availableDays} يوم متاح بالكامل
-              </Badge>
-              <Badge variant="outline" className="bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
-                <span className="w-2 h-2 rounded-full bg-rose-500 ml-1.5 shadow-xs"></span>
-                {monthStats.bookedDays} يوم محجوز بالكامل
-              </Badge>
-              {monthStats.partialDays > 0 && (
-                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-bold py-1 px-2.5 rounded-xl">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 ml-1.5 shadow-xs"></span>
-                  {monthStats.partialDays} يوم به حجز جزئي
-                </Badge>
-              )}
-            </div>
-            
-            {/* Section Badges Legend */}
-            <div className="flex items-center gap-2.5 text-[11px] font-black">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/40">
-                👑 رجال ونساء
+          {/* Row 3: Stats strip + legend */}
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" /> {monthStats.availableDays} متاح
+            </span>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">
+              <span className="w-2 h-2 rounded-full bg-rose-500" /> {monthStats.bookedDays} محجوز
+            </span>
+            {monthStats.partialDays > 0 && (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                <span className="w-2 h-2 rounded-full bg-amber-500" /> {monthStats.partialDays} جزئي
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-900 dark:text-emerald-300 border border-emerald-500/40">
-                👔 رجال فقط
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-pink-500/15 text-pink-900 dark:text-pink-300 border border-pink-500/40">
-                👗 نساء فقط
-              </span>
-            </div>
+            )}
+            <span className="mr-auto hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground font-semibold">
+              <span>👑 رجال ونساء</span>
+              <span>👔 رجال فقط</span>
+              <span>🌸 نساء فقط</span>
+            </span>
           </div>
         </CardHeader>
 
-        <CardContent className="p-3 sm:p-6">
+        {/* ── CONTENT ─────────────────────────────────────────────────────── */}
+        <CardContent className="p-2 sm:p-4">
           {viewType === 'grid' ? (
             <div>
-              {/* Day of week headers */}
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 mb-2">
-                {HIJRI_DAYS.map((dayName, idx) => {
-                  const isWeekend = dayName === 'الخميس' || dayName === 'الجمعة';
+              {/* Day headers */}
+              <div className="grid grid-cols-7 gap-1 mb-1.5">
+                {HIJRI_DAYS.map((d, i) => {
+                  const isWknd = d === 'الخميس' || d === 'الجمعة';
                   return (
-                    <div 
-                      key={idx} 
-                      className={cn(
-                        "text-center text-xs sm:text-sm font-black py-2 rounded-2xl shadow-2xs border transition-colors",
-                        isWeekend 
-                          ? "text-amber-700 dark:text-amber-300 bg-amber-500/15 border-amber-500/30 font-black" 
-                          : "text-muted-foreground bg-muted/40 border-border/50"
-                      )}
-                    >
-                      {dayName}
+                    <div key={i} className={cn(
+                      "text-center text-[10px] sm:text-xs font-black py-1.5 rounded-lg",
+                      isWknd ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground bg-muted/40"
+                    )}>
+                      {d.slice(0, 2)}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Day Cells Grid */}
+              {/* Cells */}
               {calMode === 'hijri' ? (
-                <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+                <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                   {hijriCalDays.map((day, i) => {
-                    if (!day) return <div key={i} className="min-h-[82px] sm:min-h-[105px] rounded-2xl bg-muted/10 border border-dashed border-border/30" />;
+                    if (!day) return <div key={i} className="min-h-[56px] sm:min-h-[72px] rounded-xl" />;
                     const hijriStr = `${hijriViewYear}/${String(hijriViewMonth).padStart(2,'0')}/${String(day).padStart(2,'0')}`;
                     const gDate = moment(hijriStr, 'iYYYY/iMM/iDD').format('YYYY-MM-DD');
-                    const dayBookings = getBookingsForDate(gDate);
-                    const dayOfWeekIdx = i % 7;
-                    const dayOfWeekName = HIJRI_DAYS[dayOfWeekIdx];
-                    return renderDayCell(day, dayBookings, isTodayDate(gDate), gDate, dayOfWeekName);
+                    return renderDayCell(day, getBookingsForDate(gDate), isTodayDate(gDate), gDate, HIJRI_DAYS[i % 7]);
                   })}
                 </div>
               ) : (
-                <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
+                <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                   {Array.from({ length: calDays.startDow }).map((_, i) => (
-                    <div key={`empty-${i}`} className="min-h-[82px] sm:min-h-[105px] rounded-2xl bg-muted/10 border border-dashed border-border/30" />
+                    <div key={`e-${i}`} className="min-h-[56px] sm:min-h-[72px] rounded-xl" />
                   ))}
                   {calDays.days.map((day, idx) => {
                     const gDate = format(day, 'yyyy-MM-dd');
-                    const dayBookings = getBookingsForDate(gDate);
-                    const dayOfWeekIdx = (calDays.startDow + idx) % 7;
-                    const dayOfWeekName = HIJRI_DAYS[dayOfWeekIdx];
-                    return renderDayCell(format(day, 'd'), dayBookings, isTodayDate(gDate), gDate, dayOfWeekName);
+                    return renderDayCell(format(day, 'd'), getBookingsForDate(gDate), isTodayDate(gDate), gDate, HIJRI_DAYS[(calDays.startDow + idx) % 7]);
                   })}
                 </div>
               )}
 
-              {/* iPhone / Mobile Interactive Selected Day Inspector Panel */}
-              <div className="mt-6 p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-card via-muted/40 to-card border border-amber-500/30 shadow-xl">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3.5 border-b border-border/60">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 flex items-center justify-center font-black shadow-md flex-shrink-0">
-                      <Clock className="w-6 h-6 stroke-[2.5]" />
-                    </div>
+              {/* ── SELECTED DAY PANEL ─────────────────────────────────────── */}
+              <div className="mt-4 rounded-2xl border border-border/70 bg-card/80 overflow-hidden shadow-sm">
+                {/* Panel header */}
+                <div className="flex items-center justify-between gap-2 p-3 border-b border-border/50 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-base sm:text-lg font-black text-foreground">
-                          {selectedDayHijri ? `${selectedDayHijri} هـ` : ''}
-                        </h4>
-                        <Badge className={cn(
-                          "text-xs font-black px-2.5 py-0.5 rounded-xl border",
-                          selectedDayStatus === 'full' 
-                            ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30" 
-                            : selectedDayStatus === 'partial' 
-                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" 
-                            : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                        )}>
-                          {selectedDayStatus === 'full' ? '🔴 محجوز بالكامل' : selectedDayStatus === 'partial' ? '🟡 حجز جزئي' : '🟢 متاح بالكامل للحجز'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {inlineSelectedDate ? format(new Date(inlineSelectedDate), 'EEEE، dd MMMM yyyy', { locale: ar }) : ''} م
+                      <p className="text-sm font-black text-foreground">{selectedDayHijri} هـ</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {inlineSelectedDate ? format(new Date(inlineSelectedDate), 'EEEE، dd MMMM yyyy', { locale: ar }) : ''}
                       </p>
                     </div>
+                    <Badge className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-lg ml-1",
+                      selectedDayStatus === 'full' ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                        : selectedDayStatus === 'partial' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                    )}>
+                      {selectedDayStatus === 'full' ? '● محجوز' : selectedDayStatus === 'partial' ? '◑ جزئي' : '○ متاح'}
+                    </Badge>
                   </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
                     {selectedDayAvailableSections.length > 0 && (
-                      <Button
-                        size="sm"
-                        onClick={() => openQuickBookingForDate(inlineSelectedDate)}
-                        className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs h-9 shadow-md shadow-amber-500/20"
-                      >
-                        <Plus className="w-4 h-4 ml-1 stroke-[3]" /> إضافة حجز في هذا اليوم
+                      <Button size="sm" onClick={() => openQuickBookingForDate(inlineSelectedDate)}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black h-8 text-xs rounded-xl px-3 shadow-sm">
+                        <Plus className="w-3.5 h-3.5 ml-1" /> حجز
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleOpenDialog(inlineSelectedDate)}
-                      className="rounded-xl text-xs h-9 font-bold border-border"
-                    >
-                      <Eye className="w-3.5 h-3.5 ml-1" /> إدارة وتفاصيل اليوم
+                    <Button size="sm" variant="outline" onClick={() => handleOpenDialog(inlineSelectedDate)}
+                      className="h-8 text-xs rounded-xl font-bold px-3">
+                      <Eye className="w-3.5 h-3.5 ml-1" /> تفاصيل
                     </Button>
                   </div>
                 </div>
 
-                {/* Selected Day Bookings Detail List */}
-                <div className="mt-4">
+                {/* Panel bookings */}
+                <div className="p-3">
                   {selectedDayBookings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div className="space-y-2">
                       {selectedDayBookings.map(b => {
                         const sec = getSectionBadge(b.hall_section);
                         return (
-                          <div 
-                            key={b.id}
-                            className="p-4 rounded-2xl bg-card border border-border/80 flex items-center justify-between gap-3 shadow-sm hover:border-amber-500/50 transition-all"
-                          >
-                            <div className="space-y-1.5 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-black text-sm sm:text-base text-foreground truncate">{b.customer_name}</span>
-                                <Badge className={cn("text-xs px-2.5 py-0.5 rounded-xl border shadow-2xs", sec.badgeClass)}>
-                                  {sec.label}
-                                </Badge>
+                          <div key={b.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-muted/30 border border-border/60 hover:border-amber-400/50 transition-colors">
+                            <span className={cn("w-3 h-3 rounded-full flex-shrink-0 shadow-xs", sec.dotClass)} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-black text-sm text-foreground truncate">{b.customer_name}</span>
+                                <span className="text-[10px] font-bold text-muted-foreground">{sec.icon} {sec.label}</span>
                               </div>
-                              <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
+                              <p className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                                 <span>{b.event_type}</span>
                                 <span>•</span>
-                                <span className="font-mono" dir="ltr">{b.customer_phone}</span>
-                                <span>•</span>
-                                <span className="font-black text-primary">{formatCurrency(b.final_amount)}</span>
+                                <span className={cn("font-bold", (b.remaining_amount || 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                  {(b.remaining_amount || 0) > 0 ? `متبقي: ${formatCurrency(b.remaining_amount)}` : 'خالص ✓'}
+                                </span>
                               </p>
-                              {(b.remaining_amount || 0) > 0 ? (
-                                <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400">
-                                  متبقي للتحصيل: {formatCurrency(b.remaining_amount)}
-                                </p>
-                              ) : (
-                                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> خالص السداد بالكامل
-                                </p>
-                              )}
                             </div>
-
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               {b.customer_phone && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => openWhatsApp(b)}
-                                  className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 rounded-xl"
-                                  title="مراسلة واتساب"
-                                >
-                                  <MessageSquare className="w-4 h-4" />
+                                <Button size="icon" variant="ghost" onClick={() => openWhatsApp(b)}
+                                  className="h-8 w-8 text-emerald-600 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                                  <MessageSquare className="w-3.5 h-3.5" />
                                 </Button>
                               )}
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => navigate(`/bookings/${b.id}`)}
-                                className="h-9 w-9 text-muted-foreground hover:text-primary rounded-xl"
-                                title="عرض العقد الكامل"
-                              >
-                                <ArrowRight className="w-4 h-4 rotate-180" />
+                              <Button size="icon" variant="ghost" onClick={() => navigate(`/bookings/${b.id}`)}
+                                className="h-8 w-8 text-muted-foreground rounded-xl hover:text-primary">
+                                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
                               </Button>
                             </div>
                           </div>
@@ -721,117 +515,67 @@ export default function InteractiveCalendar({ bookings = [] }) {
                       })}
                     </div>
                   ) : (
-                    <div className="py-5 text-center text-xs sm:text-sm text-muted-foreground font-bold flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      <span>جميع أقسام القاعة متاحة للحجز في هذا اليوم (قسم الرجال وقسم النساء).</span>
+                    <div className="flex items-center justify-center gap-2 py-3 text-xs text-muted-foreground font-semibold">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span>القاعة متاحة بالكامل في هذا اليوم</span>
                     </div>
                   )}
                 </div>
               </div>
             </div>
           ) : (
-            /* Agenda / List View (Optimized for Mobile & iPhone) */
-            <div className="space-y-3.5">
+            /* ── AGENDA VIEW ───────────────────────────────────────────────── */
+            <div className="space-y-2.5">
               {currentMonthBookings.length > 0 ? (
-                currentMonthBookings.map((b) => {
+                currentMonthBookings.map(b => {
                   const sec = getSectionBadge(b.hall_section);
                   const hijriDateDisplay = b.event_date_hijri || gregorianToHijri(b.event_date);
-                  const gregFormatted = b.event_date ? format(new Date(b.event_date), 'dd MMMM yyyy', { locale: ar }) : '-';
-
                   return (
-                    <div 
-                      key={b.id}
-                      className="p-4 sm:p-5 rounded-3xl border border-border/80 bg-card hover:bg-muted/30 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-                    >
-                      <div className="flex items-start sm:items-center gap-3.5">
-                        {/* Date badge */}
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-950 to-slate-900 text-white flex flex-col items-center justify-center font-black flex-shrink-0 shadow-md border border-amber-500/30">
-                          <span className="text-base leading-none text-amber-400">
-                            {hijriDateDisplay ? hijriDateDisplay.split('/')[2] : '--'}
-                          </span>
-                          <span className="text-[10px] text-emerald-200 mt-1 leading-none font-bold">
-                            {HIJRI_MONTHS[hijriViewMonth - 1]}
-                          </span>
-                        </div>
-
-                        {/* Booking & Section details */}
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-black text-base text-foreground">{b.customer_name}</span>
-                            {/* Prominent Hall Section Badge */}
-                            <Badge className={cn("text-xs px-2.5 py-0.5 rounded-xl border shadow-2xs", sec.badgeClass)}>
-                              {sec.label}
-                            </Badge>
-                            <Badge variant="outline" className={b.status === 'مؤكد' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-bold' : 'bg-amber-500/10 text-amber-700 border-amber-500/20 font-bold'}>
-                              {b.status}
-                            </Badge>
-                          </div>
-
-                          <p className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap font-medium">
-                            <span>{b.event_type}</span>
-                            <span>•</span>
-                            <strong className="text-foreground">{hijriDateDisplay} هـ</strong>
-                            <span className="opacity-75">({gregFormatted} م)</span>
-                            {b.voucher_number && <span>• سند: #{b.voucher_number}</span>}
-                          </p>
-
-                          <p className="text-xs text-muted-foreground font-mono" dir="ltr">
-                            {b.customer_phone}
-                          </p>
-                        </div>
+                    <div key={b.id}
+                      className="p-3.5 rounded-2xl border border-border/80 bg-card hover:border-amber-400/40 transition-all shadow-xs flex items-center gap-3">
+                      {/* Date badge */}
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-950 to-slate-900 text-white flex flex-col items-center justify-center flex-shrink-0 border border-amber-500/30">
+                        <span className="text-sm font-black text-amber-400 leading-none">{hijriDateDisplay?.split('/')[2]}</span>
+                        <span className="text-[9px] text-emerald-300 mt-0.5 leading-none">{HIJRI_MONTHS[hijriViewMonth - 1]}</span>
                       </div>
-
-                      {/* Financial info & action buttons */}
-                      <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
-                        <div className="text-right sm:text-left">
-                          <span className="text-[11px] text-muted-foreground block font-semibold">إجمالي العقد</span>
-                          <span className="font-black text-base text-primary block">{formatCurrency(b.final_amount)}</span>
-                          <span className={cn(
-                            "text-[10px] font-bold block",
-                            (b.remaining_amount || 0) > 0 ? "text-rose-600" : "text-emerald-600"
-                          )}>
-                            {(b.remaining_amount || 0) > 0 ? `متبقي: ${formatCurrency(b.remaining_amount)}` : 'خالص السداد ✓'}
+                      {/* Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                          <span className="font-black text-sm text-foreground truncate">{b.customer_name}</span>
+                          <Badge className={cn("text-[10px] px-2 py-0 rounded-lg border", sec.badgeClass)}>{sec.icon} {sec.label}</Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                          <span>{b.event_type}</span>
+                          <span>•</span>
+                          <span className="font-mono">{b.customer_phone}</span>
+                          <span>•</span>
+                          <span className={cn("font-bold", (b.remaining_amount || 0) > 0 ? "text-rose-600" : "text-emerald-600")}>
+                            {(b.remaining_amount || 0) > 0 ? `متبقي: ${formatCurrency(b.remaining_amount)}` : 'خالص ✓'}
                           </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          {b.customer_phone && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openWhatsApp(b)}
-                              className="h-9 w-9 text-emerald-600 hover:bg-emerald-500/10 rounded-xl"
-                              title="مراسلة واتساب"
-                            >
-                              <MessageSquare className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => navigate(`/bookings/${b.id}`)}
-                            className="rounded-xl text-xs font-black h-9 border-border"
-                          >
-                            <span>تفاصيل العقد</span>
-                            <ArrowRight className="w-3.5 h-3.5 mr-1 rotate-180" />
+                        </p>
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {b.customer_phone && (
+                          <Button size="icon" variant="ghost" onClick={() => openWhatsApp(b)}
+                            className="h-8 w-8 text-emerald-600 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                            <MessageSquare className="w-3.5 h-3.5" />
                           </Button>
-                        </div>
+                        )}
+                        <Button size="icon" variant="ghost" onClick={() => navigate(`/bookings/${b.id}`)}
+                          className="h-8 w-8 text-muted-foreground rounded-xl hover:text-primary">
+                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                        </Button>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="text-center py-16 text-muted-foreground flex flex-col items-center justify-center rounded-3xl bg-muted/10 border border-dashed border-border/80">
-                  <CalendarCheck className="w-12 h-12 mb-3 text-amber-500/40" />
-                  <p className="font-black text-base text-foreground">لا توجد حجوزات مسجلة في هذا الشهر</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    يمكنك تصفح الأشهر الأخرى أو الضغط على أي يوم لإضافة حجز جديد.
-                  </p>
-                  <Button 
-                    size="sm" 
-                    onClick={() => openQuickBookingForDate(todayStr)} 
-                    className="mt-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl shadow-md"
-                  >
+                <div className="text-center py-12 rounded-2xl bg-muted/10 border border-dashed border-border/60">
+                  <CalendarCheck className="w-10 h-10 mx-auto mb-2 text-amber-500/40" />
+                  <p className="font-bold text-foreground text-sm">لا توجد حجوزات في هذا الشهر</p>
+                  <Button size="sm" onClick={() => openQuickBookingForDate(todayStr)}
+                    className="mt-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl">
                     <Plus className="w-4 h-4 ml-1" /> تسجيل حجز جديد
                   </Button>
                 </div>
@@ -841,7 +585,6 @@ export default function InteractiveCalendar({ bookings = [] }) {
         </CardContent>
       </Card>
 
-      {/* Day Booking Modal Dialog */}
       {selectedDialogDate && (
         <DayBookingsDialog
           open={!!selectedDialogDate}
@@ -851,7 +594,6 @@ export default function InteractiveCalendar({ bookings = [] }) {
         />
       )}
 
-      {/* Quick Booking Dialog */}
       {showQuickBook && (
         <QuickBookingDialog
           open={showQuickBook}
