@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-and-deploy:
     name: Build & Deploy to Hostinger
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: 🚚 Checkout Repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: ⚙️ Setup Node.js 20
         uses: actions/setup-node@v4
@@ -37,4 +42,20 @@ jobs:
           HOSTINGER_FTP_SERVER: ${{ secrets.HOSTINGER_FTP_SERVER }}
           HOSTINGER_FTP_USERNAME: ${{ secrets.HOSTINGER_FTP_USERNAME }}
           HOSTINGER_FTP_PASSWORD: ${{ secrets.HOSTINGER_FTP_PASSWORD }}
-        run: node scripts/deploy_to_hostinger.mjs
+        run: |
+          node scripts/deploy_to_hostinger.mjs 2>&1 | tee deploy_log.txt || true
+
+      - name: 📝 Log Result
+        run: |
+          cat deploy_log.txt
+          if grep -q "ALL FILES UPLOADED" deploy_log.txt; then
+            echo "Deploy succeeded!"
+          else
+            echo "Deploy failed! Recording log."
+            git config --global user.name "github-actions"
+            git config --global user.email "actions@github.com"
+            git add deploy_log.txt
+            git commit -m "ci: hostinger deploy debug log [skip ci]" || true
+            git push origin main || true
+            exit 1
+          fi
