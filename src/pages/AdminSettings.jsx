@@ -25,6 +25,7 @@ import DataMigrationTab from '@/components/admin/DataMigrationTab';
 import PackagesManagerTab from '@/components/admin/PackagesManagerTab';
 import SectionsEventsManagerTab from '@/components/admin/SectionsEventsManagerTab';
 import BankingPaymentManagerTab from '@/components/admin/BankingPaymentManagerTab';
+import SecuritySettingsTab from '@/components/admin/SecuritySettingsTab';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
@@ -231,7 +232,12 @@ export default function AdminSettings() {
 
             <TabsTrigger value="database" className="rounded-xl gap-2 font-bold text-xs py-2 px-3.5 select-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Database className="w-4 h-4 text-emerald-500" />
-              قاعدة البيانات والنسخ الاحتياطي
+              النسخ الاحتياطي وقاعدة البيانات
+            </TabsTrigger>
+
+            <TabsTrigger value="security" className="rounded-xl gap-2 font-bold text-xs py-2 px-3.5 select-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <ShieldCheck className="w-4 h-4 text-amber-500" />
+              الأمان والتحصينات وقفل الجلسة 🔒
             </TabsTrigger>
           </TabsList>
         </div>
@@ -608,6 +614,11 @@ export default function AdminSettings() {
         {/* TAB 7: Database Migration & Diagnostics */}
         <TabsContent value="database">
           <DataMigrationTab />
+        </TabsContent>
+
+        {/* TAB 8: Security & Inactivity Lock Settings */}
+        <TabsContent value="security">
+          <SecuritySettingsTab />
         </TabsContent>
 
       </Tabs>

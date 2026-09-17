@@ -21,47 +21,51 @@ import AdminSettings from '@/pages/AdminSettings';
 import CustomerStatement from '@/pages/CustomerStatement';
 import PendingPayments from '@/pages/PendingPayments';
 
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+import Login from '@/pages/Login';
+import LockScreen from '@/components/auth/LockScreen';
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
+const AuthenticatedApp = () => {
+  const { isAuthenticated, isLocked, isLoadingAuth } = useAuth();
+
+  if (isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
+      <div className="fixed inset-0 flex items-center justify-center bg-slate-950 text-white font-cairo">
         <div className="text-center space-y-4">
-          <div className="w-10 h-10 border-4 border-muted border-t-accent rounded-full animate-spin mx-auto"></div>
-          <p className="text-sm text-muted-foreground font-cairo">جاري التحميل...</p>
+          <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm text-amber-400 font-bold">جاري تحميل نظام قمة الريف الآمن...</p>
         </div>
       </div>
     );
   }
 
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      navigateToLogin();
-      return null;
-    }
+  // If not authenticated, render strict Login page
+  if (!isAuthenticated) {
+    return <Login />;
   }
 
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/bookings" element={<Bookings />} />
-        <Route path="/bookings/new" element={<BookingFormPage />} />
-        <Route path="/bookings/:id" element={<BookingDetailsPage />} />
-        <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
-        <Route path="/cash" element={<CashManagement />} />
-        <Route path="/bank" element={<BankManagement />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/reports" element={<Reports />} />
-        <Route path="/admin" element={<AdminSettings />} />
-        <Route path="/customer-statement" element={<CustomerStatement />} />
-        <Route path="/pending-payments" element={<PendingPayments />} />
-      </Route>
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+    <>
+      {/* Inactivity Auto-Lock Overlay */}
+      {isLocked && <LockScreen />}
+
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/bookings" element={<Bookings />} />
+          <Route path="/bookings/new" element={<BookingFormPage />} />
+          <Route path="/bookings/:id" element={<BookingDetailsPage />} />
+          <Route path="/bookings/:id/edit" element={<BookingFormPage />} />
+          <Route path="/cash" element={<CashManagement />} />
+          <Route path="/bank" element={<BankManagement />} />
+          <Route path="/expenses" element={<Expenses />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/admin" element={<AdminSettings />} />
+          <Route path="/customer-statement" element={<CustomerStatement />} />
+          <Route path="/pending-payments" element={<PendingPayments />} />
+        </Route>
+        <Route path="*" element={<PageNotFound />} />
+      </Routes>
+    </>
   );
 };
 
