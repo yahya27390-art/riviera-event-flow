@@ -114,7 +114,7 @@ export default function Reports() {
     <div>
       <PageHeader title="التقارير" description="تقارير تشغيلية ومالية" />
 
-      <div className="flex flex-wrap items-end gap-4 mb-6">
+      <div className="flex flex-wrap items-end gap-3 mb-6 bg-card p-4 rounded-2xl border border-border/70 shadow-sm">
         <HijriDatePicker
           label="من تاريخ"
           value={{ hijri: dateFromHijri, gregorian: dateFrom }}
@@ -125,10 +125,65 @@ export default function Reports() {
           value={{ hijri: dateToHijri, gregorian: dateTo }}
           onChange={({ hijri, gregorian }) => { setDateTo(gregorian); setDateToHijri(hijri); }}
         />
-        <Button onClick={handlePrint} className="gap-2">
-          <Printer className="w-4 h-4" />
-          طباعة هذا التقرير
-        </Button>
+        
+        {/* Quick Date Range Presets */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              const start = '2026-01-01';
+              const end = '2026-12-31';
+              setDateFrom(start);
+              setDateFromHijri(gregorianToHijri(start));
+              setDateTo(end);
+              setDateToHijri(gregorianToHijri(end));
+            }}
+            className="text-xs font-bold rounded-xl h-9"
+          >
+            جميع السجلات (1448هـ)
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              const start = '2026-07-01';
+              const end = '2026-09-30';
+              setDateFrom(start);
+              setDateFromHijri(gregorianToHijri(start));
+              setDateTo(end);
+              setDateToHijri(gregorianToHijri(end));
+            }}
+            className="text-xs font-bold rounded-xl h-9"
+          >
+            الربع الحالي (3 أشهر)
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+              const end = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+              setDateFrom(start);
+              setDateFromHijri(gregorianToHijri(start));
+              setDateTo(end);
+              setDateToHijri(gregorianToHijri(end));
+            }}
+            className="text-xs font-bold rounded-xl h-9"
+          >
+            الشهر الحالي
+          </Button>
+        </div>
+
+        <div className="mr-auto">
+          <Button onClick={handlePrint} className="gap-2 rounded-xl h-9 shadow-sm bg-primary font-bold">
+            <Printer className="w-4 h-4" />
+            طباعة هذا التقرير
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

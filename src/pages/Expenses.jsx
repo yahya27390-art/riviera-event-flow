@@ -20,6 +20,7 @@ import HijriDatePicker from '@/components/shared/HijriDatePicker';
 import { gregorianToHijri } from '@/lib/hijri';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const EXPENSE_TYPES = [
   'كهرباء', 'عمالة', 'صيانة', 'رواتب', 'إدارية', 'طارئة', 'بنكية',
@@ -128,7 +129,17 @@ export default function Expenses() {
     },
   });
 
-  const filteredExpenses = filterType === 'all' ? expenses : expenses.filter(e => e.expense_type === filterType);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredExpenses = expenses.filter(e => {
+    const matchesType = filterType === 'all' || e.expense_type === filterType;
+    const matchesSearch = !searchTerm || 
+      (e.description && e.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (e.expense_number && e.expense_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (e.expense_type && e.expense_type.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      String(e.amount).includes(searchTerm);
+    return matchesType && matchesSearch;
+  });
   const total = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
 
   // Summary by type
@@ -141,81 +152,101 @@ export default function Expenses() {
   return (
     <div>
       <PageHeader
-        title="المصروفات"
-        description={`إجمالي: ${formatCurrency(expenses.reduce((s, e) => s + (e.amount || 0), 0))}`}
-        actions={<Button onClick={() => { setForm(emptyForm); setEditExpenseId(null); setShowDialog(true); }}><Plus className="w-4 h-4 ml-2" /> مصروف جديد</Button>}
+        title="سجل المصروفات التشغيلية"
+        description={`إجمالي المصروفات: ${formatCurrency(expenses.reduce((s, e) => s + (e.amount || 0), 0))} (${expenses.length} سند صرف معتمد)`}
+        actions={<Button onClick={() => { setForm(emptyForm); setEditExpenseId(null); setShowDialog(true); }} className="bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20"><Plus className="w-4 h-4 ml-2" /> تسجيل مصروف جديد</Button>}
       />
 
       {/* Summary Cards by Type */}
       {Object.keys(summaryByType).length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
           {Object.entries(summaryByType).map(([type, amount]) => (
-            <Card key={type} className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilterType(filterType === type ? 'all' : type)}>
-              <CardContent className="p-4">
-                <Badge variant="outline" className={`text-xs mb-2 ${TYPE_COLORS[type] || 'bg-muted text-muted-foreground'}`}>{type}</Badge>
-                <p className="font-bold text-sm">{formatCurrency(amount)}</p>
+            <Card key={type} className={`border border-border/60 shadow-sm cursor-pointer hover:shadow-md transition-all ${filterType === type ? 'ring-2 ring-rose-500 bg-rose-50/50 dark:bg-rose-950/20' : ''}`} onClick={() => setFilterType(filterType === type ? 'all' : type)}>
+              <CardContent className="p-3.5">
+                <Badge variant="outline" className={`text-xs mb-1.5 ${TYPE_COLORS[type] || 'bg-muted text-muted-foreground'}`}>{type}</Badge>
+                <p className="font-black text-sm text-foreground">{formatCurrency(amount)}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex items-center gap-3 mb-4">
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Input
+            placeholder="بحث بالوصف، رقم السند، أو المبلغ..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="h-10 rounded-xl bg-card border-border/70 text-sm"
+          />
+        </div>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-52">
+          <SelectTrigger className="w-full sm:w-52 h-10 rounded-xl bg-card border-border/70">
             <SelectValue placeholder="تصفية حسب النوع" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">جميع الأنواع</SelectItem>
+            <SelectItem value="all">جميع البنود ({expenses.length})</SelectItem>
             {EXPENSE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
-        {filterType !== 'all' && (
-          <span className="text-sm text-muted-foreground">{filteredExpenses.length} سجل • إجمالي: {formatCurrency(total)}</span>
+        {(filterType !== 'all' || searchTerm) && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilterType('all'); setSearchTerm(''); }} className="text-xs text-muted-foreground">
+            إعادة تعيين
+          </Button>
         )}
       </div>
 
+      <div className="text-xs font-bold text-muted-foreground mb-3 px-1">
+        المعروض: {filteredExpenses.length} سند صرف • إجمالي التصفية: <span className="text-rose-600 dark:text-rose-400 font-black">{formatCurrency(total)}</span>
+      </div>
+
       {filteredExpenses.length === 0 ? (
-        <EmptyState icon={Receipt} title="لا توجد مصروفات" description="ابدأ بإضافة أول مصروف" />
+        <EmptyState icon={Receipt} title="لا توجد مصروفات مطابقة" description="جرب تغيير معايير البحث أو التصفية" />
       ) : (
-        <Card className="border-0 shadow-sm overflow-hidden">
+        <Card className="border border-border/70 shadow-sm overflow-hidden rounded-2xl">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/50">
+                <TableRow className="bg-muted/60">
+                  <TableHead className="text-right">رقم السند</TableHead>
                   <TableHead className="text-right">التاريخ</TableHead>
-                  <TableHead className="text-right">النوع</TableHead>
-                  <TableHead className="text-right">الوصف</TableHead>
-                  <TableHead className="text-right">الطريقة</TableHead>
+                  <TableHead className="text-right">البند</TableHead>
+                  <TableHead className="text-right">البيان / الوصف</TableHead>
+                  <TableHead className="text-right">وسيلة الصرف</TableHead>
                   <TableHead className="text-right">المبلغ</TableHead>
                   <TableHead className="text-right">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredExpenses.map(e => (
-                  <TableRow key={e.id} className="hover:bg-muted/30">
+                  <TableRow key={e.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="text-xs font-mono font-bold text-muted-foreground">
+                      <span className="px-2 py-0.5 rounded-md bg-muted border border-border/60">
+                        {e.expense_number || `EXP-${e.id.slice(0, 6)}`}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-sm">
                       {e.expense_date ? (
                         <div>
-                          <div className="font-medium">{gregorianToHijri(e.expense_date)} هـ</div>
-                          <div className="text-xs text-muted-foreground">{format(new Date(e.expense_date), 'dd/MM/yyyy')} م</div>
+                          <div className="font-bold text-xs">{gregorianToHijri(e.expense_date)} هـ</div>
+                          <div className="text-[11px] text-muted-foreground font-mono">{format(new Date(e.expense_date), 'dd/MM/yyyy')} م</div>
                         </div>
                       ) : '-'}
                     </TableCell>
-                    <TableCell><Badge variant="outline" className={TYPE_COLORS[e.expense_type] || 'bg-muted text-muted-foreground'}>{e.expense_type}</Badge></TableCell>
-                    <TableCell className="text-sm max-w-xs">
-                      <div className="truncate">{e.description || '-'}</div>
+                    <TableCell><Badge variant="outline" className={`font-bold text-xs ${TYPE_COLORS[e.expense_type] || 'bg-muted text-muted-foreground'}`}>{e.expense_type}</Badge></TableCell>
+                    <TableCell className="text-sm max-w-sm">
+                      <div className="font-medium text-foreground">{e.description || '-'}</div>
                       {e.edited_by && (
-                        <div className="text-[10px] text-muted-foreground mt-0.5">عُدّل بواسطة: {e.edited_by}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">سُجل بواسطة: {e.edited_by}</div>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={e.payment_method === 'نقدي' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'}>
+                      <Badge variant="outline" className={e.payment_method === 'نقدي' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-bold' : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 font-bold'}>
                         {e.payment_method}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-semibold text-sm">{formatCurrency(e.amount)}</TableCell>
+                    <TableCell className="font-black text-sm text-rose-600 dark:text-rose-400 font-mono">{formatCurrency(e.amount)}</TableCell>
                     <TableCell>
                       {isAdmin ? (
                         <div className="flex items-center gap-1">
