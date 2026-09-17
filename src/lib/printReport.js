@@ -4,8 +4,7 @@
  * @param {string} title        - window / document title
  */
 export function openPrintWindow(htmlContent, title = 'تقرير') {
-  const win = window.open('', '_blank', 'width=900,height=1200');
-  win.document.write(`<!DOCTYPE html>
+  const fullHtml = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="utf-8"/>
@@ -110,12 +109,62 @@ export function openPrintWindow(htmlContent, title = 'تقرير') {
   </div>
   ${htmlContent}
   <script>
-    // auto-focus for keyboard shortcut Ctrl+P
-    window.onload = () => window.focus();
+    window.onload = () => {
+      window.focus();
+      setTimeout(() => { window.print(); }, 400);
+    };
   </script>
 </body>
-</html>`);
-  win.document.close();
+</html>`;
+
+  // Try popup window first
+  try {
+    const win = window.open('', '_blank', 'width=950,height=1200');
+    if (win && !win.closed) {
+      win.document.open();
+      win.document.write(fullHtml);
+      win.document.close();
+      return;
+    }
+  } catch (e) {
+    console.warn('Popup window blocked or threw error:', e);
+  }
+
+  // Fallback: Invisible iframe printing
+  try {
+    let iframe = document.getElementById('app-print-iframe');
+    if (iframe) {
+      iframe.remove();
+    }
+    iframe = document.createElement('iframe');
+    iframe.id = 'app-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.zIndex = '-9999';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(fullHtml);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error('Iframe print error:', err);
+        window.print();
+      }
+    }, 500);
+  } catch (err) {
+    console.error('Printing iframe fallback failed:', err);
+    window.print();
+  }
 }
 
 /** Format number as currency string */

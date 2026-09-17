@@ -6,17 +6,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Printer, User, Phone } from 'lucide-react';
+import { Search, Printer, User, Phone, Eye, ArrowRight, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import PageHeader from '@/components/shared/PageHeader';
-import { getHallLogoUrl, DEFAULT_HALL_NAME } from '@/lib/branding';
-import { gregorianToHijri } from '@/lib/hijri';
+import { openPrintWindow } from '@/lib/printReport';
+import CustomerStatementPrintTemplate from '@/components/print/CustomerStatementPrintTemplate';
 
 export default function CustomerStatement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   const { data: bookings = [] } = useQuery({
     queryKey: ['bookings'],
@@ -62,7 +63,7 @@ export default function CustomerStatement() {
     ...customerBookings.map(b => ({
       date: b.event_date,
       type: 'booking',
-      label: `حجز - ${b.event_type}${b.hall_section ? ` (${b.hall_section})` : ''}`,
+      label: `حجز - ${b.event_type || 'مناسبة'}${b.hall_section ? ` (${b.hall_section})` : ''}`,
       booking_number: b.booking_number,
       amount: b.final_amount || 0,
       method: b.booking_method || '-',
@@ -73,15 +74,15 @@ export default function CustomerStatement() {
     ...customerPayments.map(p => ({
       date: p.payment_date,
       type: 'payment',
-      label: `سداد - حجز ${p.booking_number}`,
+      label: `سداد - حجز ${p.booking_number || ''}`,
       booking_number: p.booking_number,
       amount: p.amount || 0,
-      method: p.payment_method,
+      method: p.payment_method || 'سداد مالي',
       status: null,
       id: p.id,
       hijri: '',
     })),
-  ].sort((a, b) => new Date(a.date) - new Date(b.date));
+  ].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 
   const totalBooked = customerBookings.reduce((s, b) => s + (b.final_amount || 0), 0);
   const totalPaid = customerPayments.reduce((s, p) => s + (p.amount || 0), 0);
@@ -95,197 +96,29 @@ export default function CustomerStatement() {
 
   const handlePrint = () => {
     if (!selectedCustomer) return;
-    const hs = hallSettings || {};
-    const hallName = hs.hall_name || DEFAULT_HALL_NAME;
-    const logoSrc = getHallLogoUrl(hs);
-    const printDate = new Date().toLocaleDateString('ar-SA');
-    const hijriDate = gregorianToHijri(new Date().toISOString().split('T')[0]);
-
-    const rowsHtml = timeline.map((item, idx) => {
-      const isPay = item.type === 'payment';
-      return `
-        <tr style="background: ${idx % 2 === 0 ? '#fff' : '#f9fafb'}; border-bottom: 1px solid #e5e7eb;">
-          <td style="padding: 6px 10px; font-size: 10pt;">${idx + 1}</td>
-          <td style="padding: 6px 10px; font-size: 10pt;">
-            ${item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'}
-            ${item.hijri ? `<div style="font-size: 8pt; color: #888;">${item.hijri}</div>` : ''}
-          </td>
-          <td style="padding: 6px 10px; font-size: 10pt; font-family: monospace;">${item.booking_number || '-'}</td>
-          <td style="padding: 6px 10px; font-size: 10pt; font-weight: 600;">${item.label}</td>
-          <td style="padding: 6px 10px; font-size: 10pt;">${item.method || '-'}</td>
-          <td style="padding: 6px 10px; font-size: 10pt; text-align: left; font-weight: 700; color: ${isPay ? '#059669' : '#1e3a8a'};">
-            ${isPay ? '+' : ''}${formatCurrency(item.amount)}
-          </td>
-          <td style="padding: 6px 10px; font-size: 9pt; text-align: center;">
-            <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: bold; background: ${isPay ? '#d1fae5; color: #065f46' : item.status === 'مؤكد' ? '#d1fae5; color: #065f46' : '#fef9c3; color: #92400e'};">
-              ${isPay ? 'سداد مالي' : item.status || 'حجز'}
-            </span>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    const html = `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-  <meta charset="utf-8"/>
-  <title>كشف حساب عميل - ${selectedCustomer.name}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Cairo', Arial, sans-serif; direction: rtl; background: #f3f4f6; color: #111827; }
-    @page { size: A4 portrait; margin: 10mm 12mm; }
-    @media print {
-      body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .no-print { display: none !important; }
-      .page-container { box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; padding: 0 !important; }
+    const printElement = document.getElementById('statement-print-area');
+    if (printElement) {
+      openPrintWindow(printElement.outerHTML, `كشف حساب عميل - ${selectedCustomer.name}`);
+    } else {
+      setShowPreview(true);
     }
-    .no-print {
-      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-      display: flex; gap: 10px; z-index: 999; background: rgba(0,0,0,0.85); padding: 8px 16px; border-radius: 12px;
-    }
-    .btn-print { background: #059669; color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-family: Cairo, sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; }
-    .btn-close { background: #fff; color: #333; border: none; border-radius: 8px; padding: 8px 16px; font-family: Cairo, sans-serif; font-size: 13px; cursor: pointer; }
-    .page-container {
-      width: 210mm; min-height: 297mm; background: #fff; margin: 15mm auto;
-      box-shadow: 0 4px 25px rgba(0,0,0,0.12); padding: 14mm 16mm;
-    }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th { background: #0f2b1d; color: #fff; padding: 8px 10px; font-size: 10pt; font-weight: 700; text-align: right; }
-    td { vertical-align: middle; }
-  </style>
-</head>
-<body>
-  <div class="no-print">
-    <button class="btn-print" onclick="window.print()">🖨️ طباعة كشف الحساب</button>
-    <button class="btn-close" onclick="window.close()">✕ إغلاق</button>
-  </div>
-
-  <div class="page-container">
-    {/* Header */}
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #0f2b1d; padding-bottom: 12px; margin-bottom: 16px;">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <img src="${logoSrc}" alt="Logo" style="width: 75px; height: 75px; object-fit: contain; border-radius: 8px;" onerror="this.src='./logo.png'"/>
-        <div>
-          <h1 style="font-size: 18pt; font-weight: 900; color: #0f2b1d;">${hallName}</h1>
-          <p style="font-size: 9pt; color: #6b7280; margin-top: 2px;">نظام إدارة الحجوزات والحسابات الرسمية</p>
-        </div>
-      </div>
-      <div style="text-align: left; font-size: 9pt; color: #4b5563; line-height: 1.5;">
-        <div style="font-size: 14pt; font-weight: 900; color: #059669;">كشف حساب عميل</div>
-        <div>تاريخ الإصدار: <strong>${printDate}</strong> (${hijriDate} هـ)</div>
-        ${hs.phone ? `<div>هاتف: ${hs.phone}</div>` : ''}
-        ${hs.commercial_register ? `<div>س.ت: ${hs.commercial_register}</div>` : ''}
-        ${hs.tax_number ? `<div>الرقم الضريبي: ${hs.tax_number}</div>` : ''}
-      </div>
-    </div>
-
-    {/* Customer Banner */}
-    <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        <div style="font-size: 9pt; color: #64748b;">اسم العميل:</div>
-        <div style="font-size: 14pt; font-weight: 900; color: #0f172a;">${selectedCustomer.name}</div>
-      </div>
-      <div style="text-align: left;">
-        <div style="font-size: 9pt; color: #64748b;">رقم الجوال:</div>
-        <div style="font-size: 12pt; font-weight: 800; color: #0f172a; direction: ltr;">${selectedCustomer.phone}</div>
-      </div>
-    </div>
-
-    {/* Financial Summary Grid */}
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
-      <div style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; text-align: center;">
-        <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 2px;">عدد الحجوزات</div>
-        <div style="font-size: 13pt; font-weight: 800; color: #0f172a;">${customerBookings.length}</div>
-      </div>
-      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; text-align: center;">
-        <div style="font-size: 8.5pt; color: #3b82f6; margin-bottom: 2px;">إجمالي الحجوزات</div>
-        <div style="font-size: 13pt; font-weight: 800; color: #1e3a8a;">${formatCurrency(totalBooked)}</div>
-      </div>
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px; text-align: center;">
-        <div style="font-size: 8.5pt; color: #16a34a; margin-bottom: 2px;">إجمالي المسدد</div>
-        <div style="font-size: 13pt; font-weight: 800; color: #15803d;">${formatCurrency(totalPaid)}</div>
-      </div>
-      <div style="background: ${totalRemaining > 0 ? '#fef2f2; border: 1.5px solid #fca5a5;' : '#f0fdf4; border: 1.5px solid #86efac;'} border-radius: 8px; padding: 10px; text-align: center;">
-        <div style="font-size: 8.5pt; color: ${totalRemaining > 0 ? '#dc2626' : '#16a34a'}; margin-bottom: 2px;">صافي المتبقي للتحصيل</div>
-        <div style="font-size: 13pt; font-weight: 900; color: ${totalRemaining > 0 ? '#b91c1c' : '#15803d'};">${formatCurrency(totalRemaining)}</div>
-      </div>
-    </div>
-
-    {/* Transactions Timeline Table */}
-    <div style="font-size: 11pt; font-weight: 800; color: #0f2b1d; margin-bottom: 6px; border-right: 4px solid #059669; padding-right: 8px;">
-      تفاصيل الحركات المالية وسجل الحجوزات
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width: 25px;">#</th>
-          <th>التاريخ</th>
-          <th>رقم الحجز</th>
-          <th>البيان / العملية</th>
-          <th>طريقة الدفع</th>
-          <th style="text-align: left;">المبلغ</th>
-          <th style="text-align: center;">الحالة</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #9ca3af;">لا توجد عمليات مسجلة لهذا العميل</td></tr>'}
-      </tbody>
-      <tfoot>
-        <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #0f2b1d;">
-          <td colspan="5" style="padding: 10px; text-align: right;">المجموع الإجمالي للرصيد المتبقي:</td>
-          <td colspan="2" style="padding: 10px; text-align: left; font-size: 12pt; color: ${totalRemaining > 0 ? '#dc2626' : '#059669'};">
-            ${formatCurrency(totalRemaining)}
-          </td>
-        </tr>
-      </tfoot>
-    </table>
-
-    {/* Signatures */}
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 40px; padding-top: 15px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 9pt;">
-      <div>
-        <div style="color: #64748b; margin-bottom: 30px;">المحاسب المالي</div>
-        <div style="border-top: 1px dashed #94a3b8; padding-top: 4px;">الاسم والتوقيع</div>
-      </div>
-      <div>
-        <div style="color: #64748b; margin-bottom: 30px;">ختم المنشأة</div>
-        <div style="width: 50px; height: 50px; border: 1px dashed #cbd5e1; border-radius: 50%; margin: -10px auto 0;"></div>
-      </div>
-      <div>
-        <div style="color: #64748b; margin-bottom: 30px;">توقيع العميل / المستلم</div>
-        <div style="border-top: 1px dashed #94a3b8; padding-top: 4px;">${selectedCustomer.name}</div>
-      </div>
-    </div>
-
-    {/* Footer */}
-    <div style="margin-top: 30px; text-align: center; font-size: 8pt; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 8px;">
-      ${hallName} • ${hs.address || 'المملكة العربية السعودية'} ${hs.phone ? `• هاتف: ${hs.phone}` : ''}
-    </div>
-  </div>
-
-  <script>
-    window.onload = function() {
-      setTimeout(function() { window.print(); }, 400);
-    };
-  </script>
-</body>
-</html>`;
-
-    const printWindow = window.open('', '_blank', 'width=900,height=1200');
-    printWindow.document.write(html);
-    printWindow.document.close();
   };
 
   return (
     <div>
       <PageHeader
         title="كشف حساب العملاء"
-        description="عرض كل عمليات العميل من حجوزات ومدفوعات"
+        description="عرض كل عمليات العميل من حجوزات ومدفوعات مع طباعة رسمية معتمدة"
         actions={
           selectedCustomer && (
-            <Button variant="outline" onClick={handlePrint}>
-              <Printer className="w-4 h-4 ml-1" /> طباعة كشف الحساب
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowPreview(true)}>
+                <Eye className="w-4 h-4 ml-1" /> معاينة كشف الحساب
+              </Button>
+              <Button onClick={handlePrint} className="bg-emerald-700 hover:bg-emerald-800 text-white">
+                <Printer className="w-4 h-4 ml-1" /> طباعة كشف الحساب
+              </Button>
+            </div>
           )
         }
       />
@@ -308,22 +141,22 @@ export default function CustomerStatement() {
             </CardHeader>
             <CardContent className="p-0">
               {filteredCustomers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">لا يوجد عملاء</p>
+                <p className="text-sm text-muted-foreground text-center py-8">لا يوجد عملاء مطابقة للبحث</p>
               ) : (
-                <div className="divide-y max-h-[500px] overflow-y-auto">
+                <div className="divide-y max-h-[550px] overflow-y-auto">
                   {filteredCustomers.map(c => (
                     <button
                       key={c.phone}
-                      className={`w-full text-right px-4 py-3 hover:bg-muted/50 transition-colors ${selectedCustomer?.phone === c.phone ? 'bg-primary/10 border-r-2 border-primary' : ''}`}
+                      className={`w-full text-right px-4 py-3 hover:bg-muted/50 transition-colors ${selectedCustomer?.phone === c.phone ? 'bg-primary/10 border-r-4 border-emerald-600' : ''}`}
                       onClick={() => setSelectedCustomer(c)}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4 h-4 text-primary" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4 text-emerald-800" />
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{c.name}</p>
-                          <p className="text-xs text-muted-foreground" dir="ltr">{c.phone}</p>
+                        <div className="overflow-hidden">
+                          <p className="font-bold text-sm text-gray-900 truncate">{c.name}</p>
+                          <p className="text-xs text-muted-foreground font-mono" dir="ltr">{c.phone}</p>
                         </div>
                       </div>
                     </button>
@@ -334,45 +167,49 @@ export default function CustomerStatement() {
           </Card>
         </div>
 
-        {/* Statement */}
+        {/* Statement View */}
         <div className="lg:col-span-2">
           {!selectedCustomer ? (
-            <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-              اختر عميلاً لعرض كشف حسابه
-            </div>
+            <Card className="border-0 shadow-sm">
+              <CardContent className="flex flex-col items-center justify-center h-72 text-muted-foreground text-sm">
+                <User className="w-12 h-12 text-gray-300 mb-3" />
+                <p className="text-base font-semibold text-gray-600">اختر عميلاً من القائمة لعرض كشف حسابه وطباعته</p>
+                <p className="text-xs text-gray-400 mt-1">يتم احتساب إجمالي الحجوزات، المدفوعات المسددة، والمتبقي آلياً</p>
+              </CardContent>
+            </Card>
           ) : (
-            <div id="statement-print-area" style={{ fontFamily: 'Cairo, Arial, sans-serif', direction: 'rtl' }}>
+            <div className="space-y-4">
               {/* Customer Header */}
-              <Card className="border-0 shadow-sm mb-4">
+              <Card className="border-0 shadow-sm">
                 <CardContent className="pt-4">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="w-6 h-6 text-primary" />
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <User className="w-6 h-6 text-emerald-800" />
                       </div>
                       <div>
-                        <h2 className="font-bold text-lg">{selectedCustomer.name}</h2>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1" dir="ltr">
-                          <Phone className="w-3 h-3" /> {selectedCustomer.phone}
+                        <h2 className="font-bold text-lg text-gray-900">{selectedCustomer.name}</h2>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 font-mono" dir="ltr">
+                          <Phone className="w-3.5 h-3.5 text-emerald-700" /> {selectedCustomer.phone}
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">عدد الحجوزات</p>
-                        <p className="font-bold text-lg">{customerBookings.length}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                      <div className="text-center p-2 rounded-lg bg-gray-50 border border-gray-100">
+                        <p className="text-xs text-muted-foreground">عدد الحجوزات</p>
+                        <p className="font-bold text-base text-gray-800">{customerBookings.length}</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">إجمالي الحجوزات</p>
-                        <p className="font-bold text-lg">{formatCurrency(totalBooked)}</p>
+                      <div className="text-center p-2 rounded-lg bg-blue-50 border border-blue-100">
+                        <p className="text-xs text-blue-700">إجمالي الحجوزات</p>
+                        <p className="font-bold text-base text-blue-900">{formatCurrency(totalBooked)}</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">المدفوع</p>
-                        <p className="font-bold text-lg text-green-600">{formatCurrency(totalPaid)}</p>
+                      <div className="text-center p-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                        <p className="text-xs text-emerald-700">المدفوع</p>
+                        <p className="font-bold text-base text-emerald-800">{formatCurrency(totalPaid)}</p>
                       </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">المتبقي</p>
-                        <p className={`font-bold text-lg ${totalRemaining > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                      <div className={`text-center p-2 rounded-lg border ${totalRemaining > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                        <p className={`text-xs ${totalRemaining > 0 ? 'text-red-600' : 'text-emerald-700'}`}>المتبقي</p>
+                        <p className={`font-bold text-base ${totalRemaining > 0 ? 'text-red-700' : 'text-emerald-800'}`}>
                           {formatCurrency(totalRemaining)}
                         </p>
                       </div>
@@ -383,10 +220,15 @@ export default function CustomerStatement() {
 
               {/* Timeline Table */}
               <Card className="border-0 shadow-sm">
-                <CardHeader><CardTitle className="text-base">سجل العمليات</CardTitle></CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-base font-bold text-emerald-950">سجل العمليات والمدفوعات</CardTitle>
+                  <Button size="sm" variant="outline" onClick={handlePrint}>
+                    <Printer className="w-3.5 h-3.5 ml-1" /> طباعة
+                  </Button>
+                </CardHeader>
                 <CardContent className="p-0">
                   {timeline.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">لا توجد عمليات</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">لا توجد عمليات مسجلة لهذا العميل</p>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -394,7 +236,7 @@ export default function CustomerStatement() {
                           <TableRow className="bg-muted/50">
                             <TableHead className="text-right">التاريخ</TableHead>
                             <TableHead className="text-right">رقم الحجز</TableHead>
-                            <TableHead className="text-right">العملية</TableHead>
+                            <TableHead className="text-right">العملية / البيان</TableHead>
                             <TableHead className="text-right">طريقة الدفع</TableHead>
                             <TableHead className="text-right">المبلغ</TableHead>
                             <TableHead className="text-right">النوع</TableHead>
@@ -402,24 +244,24 @@ export default function CustomerStatement() {
                         </TableHeader>
                         <TableBody>
                           {timeline.map((item, i) => (
-                            <TableRow key={i} className={item.type === 'payment' ? 'bg-green-50/50' : ''}>
+                            <TableRow key={item.id || i} className={item.type === 'payment' ? 'bg-emerald-50/40' : ''}>
                               <TableCell className="text-sm">
                                 <div>
-                                  <p>{item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'}</p>
+                                  <p className="font-medium">{item.date ? format(new Date(item.date), 'dd/MM/yyyy') : '-'}</p>
                                   {item.hijri && <p className="text-xs text-muted-foreground">{item.hijri}</p>}
                                 </div>
                               </TableCell>
-                              <TableCell className="font-mono text-sm">{item.booking_number || '-'}</TableCell>
-                              <TableCell className="text-sm">{item.label}</TableCell>
-                              <TableCell className="text-sm">{item.method}</TableCell>
-                              <TableCell className={`text-sm font-semibold ${item.type === 'payment' ? 'text-green-600' : 'text-primary'}`}>
+                              <TableCell className="font-mono text-sm font-semibold text-emerald-900">{item.booking_number || '-'}</TableCell>
+                              <TableCell className="text-sm font-medium">{item.label}</TableCell>
+                              <TableCell className="text-sm text-gray-600">{item.method}</TableCell>
+                              <TableCell className={`text-sm font-bold ${item.type === 'payment' ? 'text-emerald-600' : 'text-gray-900'}`}>
                                 {item.type === 'payment' ? '+' : ''}{formatCurrency(item.amount)}
                               </TableCell>
                               <TableCell>
                                 {item.type === 'booking' ? (
-                                  <Badge variant="outline" className={statusColor(item.status)}>{item.status}</Badge>
+                                  <Badge variant="outline" className={statusColor(item.status)}>{item.status || 'حجز'}</Badge>
                                 ) : (
-                                  <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">سداد</Badge>
+                                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200">سداد مالي</Badge>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -433,21 +275,21 @@ export default function CustomerStatement() {
 
               {/* Summary Footer */}
               {timeline.length > 0 && (
-                <Card className="border-0 shadow-sm mt-4">
+                <Card className="border-0 shadow-sm bg-gradient-to-r from-emerald-50/50 to-white">
                   <CardContent className="pt-4">
                     <div className="flex justify-end">
-                      <div className="w-64 space-y-2 text-sm">
+                      <div className="w-72 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">إجمالي الحجوزات</span>
-                          <span className="font-medium">{formatCurrency(totalBooked)}</span>
+                          <span className="text-muted-foreground">إجمالي الحجوزات التعاقدية</span>
+                          <span className="font-bold text-gray-900">{formatCurrency(totalBooked)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">إجمالي المدفوع</span>
-                          <span className="font-medium text-green-600">{formatCurrency(totalPaid)}</span>
+                          <span className="text-muted-foreground">إجمالي المدفوعات المسددة</span>
+                          <span className="font-bold text-emerald-700">{formatCurrency(totalPaid)}</span>
                         </div>
-                        <div className="flex justify-between font-bold text-base border-t pt-2">
-                          <span>صافي المتبقي</span>
-                          <span className={totalRemaining > 0 ? 'text-red-500' : 'text-green-600'}>
+                        <div className="flex justify-between font-black text-base border-t border-gray-200 pt-2">
+                          <span className="text-gray-900">صافي الرصيد المتبقي</span>
+                          <span className={totalRemaining > 0 ? 'text-red-600' : 'text-emerald-700'}>
                             {formatCurrency(totalRemaining)}
                           </span>
                         </div>
@@ -460,6 +302,96 @@ export default function CustomerStatement() {
           )}
         </div>
       </div>
+
+      {/* Hidden container with the print template always ready in DOM */}
+      {selectedCustomer && (
+        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+          <CustomerStatementPrintTemplate
+            customer={selectedCustomer}
+            bookings={bookings}
+            payments={payments}
+            hallSettings={hallSettings}
+          />
+        </div>
+      )}
+
+      {/* Print Preview Modal */}
+      {showPreview && selectedCustomer && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            overflowY: 'auto',
+            padding: '24px 16px',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPreview(false); }}
+        >
+          {/* Floating Action Toolbar */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'center', flexShrink: 0 }}>
+            <button
+              onClick={handlePrint}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: '#0f382a',
+                color: '#fff',
+                border: '1px solid #c8972e',
+                borderRadius: '8px',
+                padding: '10px 24px',
+                fontSize: '14px',
+                fontFamily: 'Cairo, sans-serif',
+                cursor: 'pointer',
+                fontWeight: '700',
+              }}
+            >
+              <Printer style={{ width: '16px', height: '16px' }} /> طباعة كشف الحساب / حفظ PDF
+            </button>
+            <button
+              onClick={() => setShowPreview(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#fff',
+                color: '#333',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                padding: '10px 20px',
+                fontSize: '14px',
+                fontFamily: 'Cairo, sans-serif',
+                cursor: 'pointer',
+              }}
+            >
+              <X style={{ width: '16px', height: '16px' }} /> إغلاق المعاينة
+            </button>
+          </div>
+
+          {/* A4 Paper Container */}
+          <div
+            style={{
+              width: '210mm',
+              minHeight: '297mm',
+              background: '#fff',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.45)',
+              borderRadius: '4px',
+              flexShrink: 0,
+            }}
+          >
+            <CustomerStatementPrintTemplate
+              customer={selectedCustomer}
+              bookings={bookings}
+              payments={payments}
+              hallSettings={hallSettings}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
