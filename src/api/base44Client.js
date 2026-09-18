@@ -61,6 +61,11 @@ function createEntityClient(tableName) {
           delete payload.id;
         }
 
+        // Remove virtual or non-existent columns from bookings table
+        if (tableName === 'bookings') {
+          delete payload.base_price;
+        }
+
         const { data, error } = await supabase
           .from(tableName)
           .insert([payload])
@@ -80,6 +85,9 @@ function createEntityClient(tableName) {
         const payload = { ...updates };
         delete payload.id;
         if (payload.created_at) delete payload.created_at;
+        if (tableName === 'bookings') {
+          delete payload.base_price;
+        }
 
         const { data, error } = await supabase
           .from(tableName)

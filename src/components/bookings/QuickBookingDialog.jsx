@@ -25,18 +25,48 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
     enabled: open,
   });
   const hallSettings = settingsList[0] || {};
-  const sectionsList = propSections || hallSettings.custom_sections || DEFAULT_SECTIONS;
+
+  // Normalize sections list: ensure every item has id and label regardless of format
+  const sectionsList = useMemo(() => {
+    let raw = (propSections && Array.isArray(propSections) && propSections.length > 0)
+      ? propSections
+      : ((hallSettings.custom_sections && Array.isArray(hallSettings.custom_sections) && hallSettings.custom_sections.length > 0)
+        ? hallSettings.custom_sections
+        : DEFAULT_SECTIONS);
+
+    return raw.map(item => {
+      if (typeof item === 'string') {
+        const matched = DEFAULT_SECTIONS.find(s => s.id === item || s.label === item);
+        return matched || { id: item, label: item, desc: '' };
+      }
+      return item;
+    });
+  }, [propSections, hallSettings.custom_sections]);
 
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
     event_date: presetDate || '',
-    event_date_hijri: presetHijri || '',
-    hall_section: sectionsList[0]?.id || 'رجال ونساء',
+    event_date_hijri: presetHijri || (presetDate ? gregorianToHijri(presetDate) : ''),
+    hall_section: 'كامل القاعة (قسمين)',
     base_price: hallSettings.evening_price || 12000,
     initial_payment_amount: '',
     initial_payment_method: 'نقدي',
   });
+
+  // Synchronize preset date and defaults whenever dialog opens or props change
+  React.useEffect(() => {
+    if (open) {
+      const defaultSec = sectionsList[0]?.id || 'كامل القاعة (قسمين)';
+      setForm(prev => ({
+        ...prev,
+        event_date: presetDate || prev.event_date || '',
+        event_date_hijri: presetHijri || (presetDate ? gregorianToHijri(presetDate) : prev.event_date_hijri || ''),
+        hall_section: prev.hall_section || defaultSec,
+        base_price: prev.base_price || hallSettings.evening_price || 12000
+      }));
+    }
+  }, [open, presetDate, presetHijri, hallSettings.evening_price, sectionsList]);
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers'],
@@ -45,7 +75,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
   });
 
   const suggestedCustomer = useMemo(() => {
-    if (!form.customer_phone || form.customer_phone.length < 9) return null;
+    if (!form.customer_phone || form.customer_phone.length < 5) return null;
     const clean = form.customer_phone.replace(/\D/g, '');
     return customers.find(c => (c.phone || '').replace(/\D/g, '').includes(clean));
   }, [form.customer_phone, customers]);
@@ -57,60 +87,94 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
       const bookingNumber = generateBookingNumber();
       const basePrice = parseFloat(data.base_price) || 0;
       const initialPaid = parseFloat(data.initial_payment_amount) || 0;
+
+      // Note: 'base_price' is removed because it is not a column in the Supabase 'bookings' table
       const created = await base44.entities.Booking.create({
-        customer_name: data.customer_name,
-        customer_phone: data.customer_phone,
+        customer_name: data.customer_name.trim(),
+        customer_phone: data.customer_phone.trim(),
         booking_number: bookingNumber,
         event_date: data.event_date,
         event_date_hijri: data.event_date_hijri || gregorianToHijri(data.event_date),
-        hall_section: data.hall_section,
+        hall_section: data.hall_section || 'كامل القاعة (قسمين)',
         event_type: 'زواج',
         service_type: 'خدمات كاملة',
         status: 'معلق',
-        base_price: basePrice,
         items: [],
         discount: 0,
         total_amount: basePrice,
         final_amount: basePrice,
         paid_amount: initialPaid,
-        remaining_amount: basePrice - initialPaid,
+        remaining_amount: Math.max(0, basePrice - initialPaid),
+        initial_payment_amount: initialPaid,
+        initial_payment_method: data.initial_payment_method || 'نقدي',
+        notes: data.notes || '',
       });
 
-      if (initialPaid > 0) {
-        await base44.entities.Payment.create({
-          booking_id: created.id,
-          booking_number: bookingNumber,
-          amount: initialPaid,
-          payment_method: data.initial_payment_method,
-          payment_date: new Date().toISOString().split('T')[0],
-          notes: 'عربون حجز سريع',
-        });
+      // Auto-create customer record if new
+      try {
+        const cleanPhone = (data.customer_phone || '').trim();
+        const existingCust = customers.find(c => (c.phone || '').replace(/\D/g, '') === cleanPhone.replace(/\D/g, ''));
+        if (!existingCust && cleanPhone) {
+          await base44.entities.Customer.create({
+            name: data.customer_name.trim(),
+            phone: cleanPhone,
+            notes: 'عميل حجز سريع',
+          });
+        }
+      } catch (custErr) {
+        console.warn('Customer auto-create skipped:', custErr);
+      }
 
-        const txType = data.initial_payment_method === 'نقدي' ? 'cash' : 'bank';
-        if (txType === 'cash') {
-          await base44.entities.CashTransaction.create({
-            type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `عربون حجز ${bookingNumber}`,
+      // Record payment and transactions if deposit provided
+      if (initialPaid > 0) {
+        try {
+          await base44.entities.Payment.create({
+            booking_id: created.id,
+            booking_number: bookingNumber,
+            customer_name: data.customer_name.trim(),
+            customer_phone: data.customer_phone.trim(),
             amount: initialPaid,
-            transaction_date: new Date().toISOString().split('T')[0],
+            payment_method: data.initial_payment_method || 'نقدي',
+            payment_date: new Date().toISOString().split('T')[0],
+            notes: 'عربون حجز سريع',
           });
-        } else {
-          await base44.entities.BankTransaction.create({
-            type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `عربون حجز ${bookingNumber}`,
-            amount: initialPaid,
-            transaction_date: new Date().toISOString().split('T')[0],
-            payment_method: data.initial_payment_method,
-          });
+
+          const txType = data.initial_payment_method === 'نقدي' ? 'cash' : 'bank';
+          if (txType === 'cash') {
+            await base44.entities.CashTransaction.create({
+              type: 'إيراد',
+              source: 'حجز',
+              reference_id: created.id,
+              reference_label: `عربون حجز ${bookingNumber}`,
+              amount: initialPaid,
+              transaction_date: new Date().toISOString().split('T')[0],
+            });
+          } else {
+            await base44.entities.BankTransaction.create({
+              type: 'إيراد',
+              source: 'حجز',
+              reference_id: created.id,
+              reference_label: `عربون حجز ${bookingNumber}`,
+              amount: initialPaid,
+              transaction_date: new Date().toISOString().split('T')[0],
+              payment_method: data.initial_payment_method || 'تحويل بنكي',
+            });
+          }
+        } catch (payErr) {
+          console.error('Payment record error:', payErr);
         }
       }
       return created;
     },
     onSuccess: () => {
       queryClient.invalidateQueries();
-      toast.success('تم إنشاء الحجز السريع بنجاح وتوليد السند المحاسبي');
+      toast.success('تم تسجيل وتثبيت الحجز بنجاح');
       onClose();
     },
+    onError: (err) => {
+      console.error('Error creating booking:', err);
+      toast.error(err?.message || 'تعذر تسجيل الحجز، يرجى المحاولة مرة أخرى');
+    }
   });
 
   const handleSubmit = (e) => {
@@ -197,23 +261,33 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
 
           {/* Hall Section Segmented Control */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-black text-foreground">قسم القاعة</Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 rounded-2xl bg-muted/50 border border-border/60">
-              {sectionsList.map(sec => (
-                <button
-                  key={sec.id}
-                  type="button"
-                  onClick={() => updateField('hall_section', sec.id)}
-                  className={cn(
-                    "py-2 rounded-xl text-xs font-bold transition-all text-center",
-                    form.hall_section === sec.id
-                      ? "bg-primary text-primary-foreground shadow-sm font-black"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {sec.label}
-                </button>
-              ))}
+            <Label className="text-xs font-black text-foreground">قسم القاعة *</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 rounded-2xl bg-muted/50 border border-border/60">
+              {sectionsList.map(sec => {
+                const isSelected = form.hall_section === sec.id;
+                const isMen = sec.id === 'رجال فقط';
+                const isWomen = sec.id === 'نساء فقط';
+
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => updateField('hall_section', sec.id)}
+                    className={cn(
+                      "py-2.5 px-3 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 border",
+                      isSelected
+                        ? (isMen 
+                            ? "bg-sky-500 text-white border-sky-600 shadow-md font-black" 
+                            : isWomen 
+                              ? "bg-pink-500 text-white border-pink-600 shadow-md font-black"
+                              : "bg-emerald-600 text-white border-emerald-700 shadow-md font-black")
+                        : "bg-card text-muted-foreground hover:text-foreground border-border/60"
+                    )}
+                  >
+                    <span>{sec.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
