@@ -15,8 +15,10 @@ export default function DayBookingsDialog({ open, onClose, date, bookings = [] }
   const availableSections = getAvailableSections(bookings);
   const hijriDate = date ? gregorianToHijri(date) : '';
 
-  const menBooked = bookings.some(b => b.hall_section === 'رجال فقط' || b.hall_section === 'رجال ونساء');
-  const womenBooked = bookings.some(b => b.hall_section === 'نساء فقط' || b.hall_section === 'رجال ونساء');
+  // A booking marks a section as taken if it's that section, or a "full hall" booking that covers both
+  const isBoth = (s) => !s || ['رجال ونساء','القسمين'].includes(s.trim()) || s.includes('كامل') || s.includes('معاً') || s.includes('معا');
+  const menBooked = bookings.some(b => isBoth(b.hall_section) || (b.hall_section || '').includes('رجال'));
+  const womenBooked = bookings.some(b => isBoth(b.hall_section) || (b.hall_section || '').includes('نساء'));
 
   if (!date) return null;
 

@@ -1,19 +1,27 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { base44 } from '@/api/base44Client';
-import { 
-  hashPasscode, 
-  verifyPasscode, 
-  checkLoginRateLimit, 
-  recordFailedLoginAttempt, 
-  resetLoginAttempts 
+import {
+  hashPasscode,
+  verifyPasscode,
+  checkLoginRateLimit,
+  recordFailedLoginAttempt,
+  resetLoginAttempts,
+  checkUnlockRateLimit,
+  recordFailedUnlockAttempt,
+  resetUnlockAttempts,
+  generateSessionFingerprint,
+  validateSessionFingerprint,
+  isSessionValid,
 } from '@/lib/security';
 import { runAutomatedDailyBackupAndPurge } from '@/lib/backupEngine';
 
 const AuthContext = createContext();
 
-const STORAGE_KEY_AUTH = 'qemat_alreef_auth_session_v1';
+const STORAGE_KEY_AUTH = 'qemat_alreef_auth_session_v2'; // bumped to v2 to invalidate old sessions
 const STORAGE_KEY_CONFIG = 'qemat_alreef_security_config_v1';
+const SESSION_MAX_HOURS = 12; // Force full re-login after 12 hours
+const VISIBILITY_LOCK_SECONDS = 120; // Auto-lock when tab hidden for 2+ minutes
 
 const DEFAULT_OWNER_EMAIL = 'sqq00100@gmail.com';
 
@@ -63,16 +71,29 @@ export const AuthProvider = ({ children }) => {
       }
       setSecurityConfig(config);
 
-      // 2. Check saved active session
+      // 2. Check saved active session (with expiry + fingerprint validation)
       const savedSession = localStorage.getItem(STORAGE_KEY_AUTH);
       if (savedSession) {
         try {
           const sessionData = JSON.parse(savedSession);
           if (sessionData && sessionData.email) {
-            setUser(sessionData);
-            setIsAuthenticated(true);
-            setIsLocked(false);
-            setMustChangePasscode(Boolean(sessionData.mustChangePasscode));
+            // 2a. Check session age (max 12 hours)
+            if (!isSessionValid(sessionData.loginTime, SESSION_MAX_HOURS)) {
+              console.info('🔒 Session expired — re-login required');
+              localStorage.removeItem(STORAGE_KEY_AUTH);
+            } else {
+              // 2b. Validate browser fingerprint to detect session copying
+              const fpValid = await validateSessionFingerprint(sessionData.fingerprint);
+              if (!fpValid) {
+                console.warn('🚨 Session fingerprint mismatch — possible session theft detected');
+                localStorage.removeItem(STORAGE_KEY_AUTH);
+              } else {
+                setUser(sessionData);
+                setIsAuthenticated(true);
+                setIsLocked(false);
+                setMustChangePasscode(Boolean(sessionData.mustChangePasscode));
+              }
+            }
           }
         } catch {
           localStorage.removeItem(STORAGE_KEY_AUTH);
@@ -89,23 +110,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Activity Tracker for Auto-Lock
+  // Activity Tracker for Auto-Lock (inactivity timer)
   useEffect(() => {
     if (!isAuthenticated || isLocked || mustChangePasscode) return;
 
     const timeoutMinutes = securityConfig.inactivityTimeoutMinutes || 15;
-    if (timeoutMinutes <= 0) return; // Disabled
+    if (timeoutMinutes <= 0) return;
 
     const timeoutMs = timeoutMinutes * 60 * 1000;
 
-    const resetInactivity = () => {
-      lastActivityRef.current = Date.now();
-    };
+    const resetInactivity = () => { lastActivityRef.current = Date.now(); };
 
     const checkInactivity = () => {
       const idleTime = Date.now() - lastActivityRef.current;
       if (idleTime >= timeoutMs) {
-        console.log('🔒 Inactivity auto-lock triggered');
         setIsLocked(true);
       }
     };
@@ -119,6 +137,28 @@ export const AuthProvider = ({ children }) => {
       clearInterval(interval);
     };
   }, [isAuthenticated, isLocked, mustChangePasscode, securityConfig.inactivityTimeoutMinutes]);
+
+  // Visibility Change Lock — hide tab for 2+ minutes triggers auto-lock
+  useEffect(() => {
+    if (!isAuthenticated || mustChangePasscode) return;
+
+    let hiddenAt = null;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
+        const hiddenMs = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (hiddenMs >= VISIBILITY_LOCK_SECONDS * 1000) {
+          setIsLocked(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isAuthenticated, mustChangePasscode]);
 
   /**
    * Helper: Get users security map from hall_settings notes and local storage
@@ -259,12 +299,17 @@ export const AuthProvider = ({ children }) => {
 
     // Successful login
     resetLoginAttempts();
+    resetUnlockAttempts(); // Clear any previous unlock failures
     setRateLimitInfo({ allowed: true, remaining: 5 });
+
+    // Generate session fingerprint to bind session to this browser
+    const fingerprint = await generateSessionFingerprint().catch(() => null);
 
     const sessionUser = {
       ...matchedUser,
       mustChangePasscode: userMustChange,
-      loginTime: Date.now()
+      loginTime: Date.now(),
+      fingerprint,
     };
 
     setUser(sessionUser);
@@ -488,6 +533,18 @@ export const AuthProvider = ({ children }) => {
   const unlockSession = async (passcodeInput) => {
     if (!user) return { success: false, message: 'لا توجد جلسة نشطة' };
 
+    // Check unlock rate limit FIRST
+    const unlockLimit = checkUnlockRateLimit();
+    if (!unlockLimit.allowed) {
+      // Too many failed attempts — force full logout
+      logout(true);
+      return {
+        success: false,
+        forceLogout: true,
+        message: 'تم تجاوز الحد المسموح من محاولات فك القفل. تم تسجيل الخروج تلقائياً للحماية.'
+      };
+    }
+
     const cleanEmail = user.email.toLowerCase();
     const ownerEmail = (securityConfig.ownerEmail || DEFAULT_OWNER_EMAIL).toLowerCase();
 
@@ -501,9 +558,24 @@ export const AuthProvider = ({ children }) => {
 
     const isValid = await verifyPasscode(passcodeInput, targetHash);
     if (!isValid) {
-      return { success: false, message: 'رمز المرور غير صحيح.' };
+      const updatedUnlock = recordFailedUnlockAttempt();
+      if (updatedUnlock.forceLogout || !updatedUnlock.allowed) {
+        // Reached the limit — force logout
+        logout(true);
+        return {
+          success: false,
+          forceLogout: true,
+          message: 'تم استنفاد محاولات فك القفل. تم تسجيل الخروج تلقائياً لحماية البيانات.'
+        };
+      }
+      return {
+        success: false,
+        message: `رمز المرور غير صحيح. محاولات متبقية: ${updatedUnlock.remaining}`
+      };
     }
 
+    // Successful unlock
+    resetUnlockAttempts();
     setIsLocked(false);
     lastActivityRef.current = Date.now();
     return { success: true };

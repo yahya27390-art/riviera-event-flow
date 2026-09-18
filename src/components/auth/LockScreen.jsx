@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Lock, Unlock, ShieldAlert, KeyRound, LogOut, Sparkles } from 'lucide-react';
+import { Lock, Unlock, ShieldAlert, KeyRound, LogOut, Sparkles, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { checkUnlockRateLimit } from '@/lib/security';
 
 export default function LockScreen() {
   const { user, unlockSession, logout } = useAuth();
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [unlockInfo, setUnlockInfo] = useState(checkUnlockRateLimit());
+
+  // Refresh rate-limit info on mount
+  useEffect(() => { setUnlockInfo(checkUnlockRateLimit()); }, []);
 
   const handleUnlock = async (e) => {
     e.preventDefault();
@@ -23,8 +28,13 @@ export default function LockScreen() {
 
     const res = await unlockSession(passcode);
     if (!res.success) {
+      if (res.forceLogout) {
+        toast.error('تم تسجيل الخروج لأسباب أمنية — يرجى إعادة تسجيل الدخول', { duration: 5000 });
+        return; // logout(true) already called inside AuthContext
+      }
       setError(res.message || 'رمز المرور غير صحيح');
       setPasscode('');
+      setUnlockInfo(checkUnlockRateLimit()); // refresh attempt count display
     } else {
       toast.success('تم فتح قفل الجلسة بنجاح 🔓');
     }
@@ -91,6 +101,14 @@ export default function LockScreen() {
               <div className="flex items-center gap-1.5 justify-center text-xs font-bold text-rose-500 bg-rose-500/10 p-2 rounded-xl border border-rose-500/20">
                 <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {/* Unlock attempt counter warning */}
+            {unlockInfo.remaining !== undefined && unlockInfo.remaining < 3 && (
+              <div className="flex items-center gap-1.5 justify-center text-xs font-bold text-amber-500 bg-amber-500/10 p-2 rounded-xl border border-amber-500/20">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>⚠️ تحذير: متبقي {unlockInfo.remaining} محاولة فقط قبل تسجيل الخروج الإجباري</span>
               </div>
             )}
 

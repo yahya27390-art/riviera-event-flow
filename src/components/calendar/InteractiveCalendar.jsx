@@ -18,16 +18,23 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { cn } from '@/lib/utils';
 
+// Helper: returns true if a hall_section value means "both sections" (full hall)
+function isBothSection(s) {
+  if (!s) return true;
+  const t = s.trim();
+  return t === 'رجال ونساء' || t === 'القسمين' || t.includes('كامل') || t.includes('معاً') || t.includes('معا');
+}
+
 export function getSectionBadge(section) {
   const s = (section || '').trim();
-  if (!s || s === 'رجال ونساء' || s.includes('كامل') || s === 'القسمين' || s.includes('معاً')) {
+  if (isBothSection(s)) {
     return {
       type: 'both',
       label: 'رجال ونساء',
       shortLabel: 'رجال ونساء',
-      badgeClass: 'bg-sky-100 text-sky-800 dark:text-sky-200 border-sky-300 font-bold',
-      dotClass: 'bg-sky-500',
-      cellBg: 'bg-sky-50/80 dark:bg-sky-950/20',
+      badgeClass: 'bg-purple-100 text-purple-800 dark:text-purple-200 border-purple-300 font-bold',
+      dotClass: 'bg-amber-500',
+      cellBg: 'bg-purple-50/80 dark:bg-purple-950/20',
       icon: '👑',
     };
   }
@@ -37,7 +44,7 @@ export function getSectionBadge(section) {
       label: 'نساء فقط',
       shortLabel: 'نساء',
       badgeClass: 'bg-rose-100 text-rose-800 dark:text-rose-200 border-rose-300 font-bold',
-      dotClass: 'bg-rose-500',
+      dotClass: 'bg-rose-400',
       cellBg: 'bg-rose-50/80 dark:bg-rose-950/20',
       icon: '🌸',
     };
@@ -66,20 +73,20 @@ export function getSectionBadge(section) {
 
 export function getDayStatus(dayBookings) {
   if (!dayBookings || dayBookings.length === 0) return 'available';
-  const hasBoth = dayBookings.some(b => b.hall_section === 'رجال ونساء' || !b.hall_section);
+  const hasBoth = dayBookings.some(b => isBothSection(b.hall_section));
   if (hasBoth) return 'full';
-  const hasMen = dayBookings.some(b => b.hall_section === 'رجال فقط');
-  const hasWomen = dayBookings.some(b => b.hall_section === 'نساء فقط');
+  const hasMen = dayBookings.some(b => (b.hall_section || '').includes('رجال'));
+  const hasWomen = dayBookings.some(b => (b.hall_section || '').includes('نساء'));
   if (hasMen && hasWomen) return 'full';
   return 'partial';
 }
 
 export function getAvailableSections(dayBookings) {
   if (!dayBookings || dayBookings.length === 0) return ['رجال فقط', 'نساء فقط', 'رجال ونساء'];
-  const hasBoth = dayBookings.some(b => b.hall_section === 'رجال ونساء' || !b.hall_section);
+  const hasBoth = dayBookings.some(b => isBothSection(b.hall_section));
   if (hasBoth) return [];
-  const hasMen = dayBookings.some(b => b.hall_section === 'رجال فقط');
-  const hasWomen = dayBookings.some(b => b.hall_section === 'نساء فقط');
+  const hasMen = dayBookings.some(b => (b.hall_section || '').includes('رجال'));
+  const hasWomen = dayBookings.some(b => (b.hall_section || '').includes('نساء'));
   const available = [];
   if (!hasMen && !hasWomen) available.push('رجال ونساء');
   if (!hasMen) available.push('رجال فقط');
@@ -216,14 +223,14 @@ export default function InteractiveCalendar({ bookings = [] }) {
     const isSelected = inlineSelectedDate === gregorianDate;
 
     // Derive which section types exist today
-    const hasMenBooking  = dayBookings.some(b => b.hall_section === 'رجال فقط');
-    const hasWomenBooking = dayBookings.some(b => b.hall_section === 'نساء فقط');
-    const hasBothBooking = dayBookings.some(b => !b.hall_section || b.hall_section === 'رجال ونساء' || b.hall_section.includes('كامل'));
+    const hasMenBooking  = dayBookings.some(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('رجال'));
+    const hasWomenBooking = dayBookings.some(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('نساء'));
+    const hasBothBooking = dayBookings.some(b => isBothSection(b.hall_section));
 
     // For tooltip: build customer list per section
-    const menNames = dayBookings.filter(b => b.hall_section === 'رجال فقط').map(b => b.customer_name).join('، ');
-    const womenNames = dayBookings.filter(b => b.hall_section === 'نساء فقط').map(b => b.customer_name).join('، ');
-    const bothNames = dayBookings.filter(b => !b.hall_section || b.hall_section === 'رجال ونساء' || b.hall_section.includes('كامل')).map(b => b.customer_name).join('، ');
+    const menNames = dayBookings.filter(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('رجال')).map(b => b.customer_name).join('، ');
+    const womenNames = dayBookings.filter(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('نساء')).map(b => b.customer_name).join('، ');
+    const bothNames = dayBookings.filter(b => isBothSection(b.hall_section)).map(b => b.customer_name).join('، ');
 
     // Cell background
     let bg = isWeekend ? 'bg-amber-50/60 dark:bg-amber-950/10' : 'bg-card';
