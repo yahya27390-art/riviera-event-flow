@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Building2, TrendingUp, TrendingDown, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Building2, TrendingUp, TrendingDown, Pencil, Trash2, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -20,11 +20,25 @@ import { gregorianToHijri } from '@/lib/hijri';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/lib/AuthContext';
+import { cn } from '@/lib/utils';
+
+const EXPENSE_TYPES = [
+  'كهرباء', 'عمالة', 'صيانة', 'رواتب', 'إدارية', 'طارئة', 'بنكية',
+  'تجهيز فرح', 'زهور وديكور', 'كماليات', 'مشتريات', 'أخرى'
+];
 
 export default function BankManagement() {
   const [showDialog, setShowDialog] = useState(false);
   const todayGreg = new Date().toISOString().split('T')[0];
-  const [form, setForm] = useState({ type: 'إيراد', amount: '', reference_label: '', payment_method: 'مدى', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+  const [form, setForm] = useState({ 
+    type: 'إيراد', 
+    expense_type: 'تجهيز فرح',
+    amount: '', 
+    reference_label: '', 
+    payment_method: 'مدى', 
+    transaction_date: todayGreg, 
+    transaction_date_hijri: gregorianToHijri(todayGreg) 
+  });
   const [editTransactionId, setEditTransactionId] = useState(null);
   const [deleteTransactionId, setDeleteTransactionId] = useState(null);
   const [confirmEdit, setConfirmEdit] = useState(false);
@@ -38,35 +52,147 @@ export default function BankManagement() {
   });
 
   const create = useMutation({
-    mutationFn: (data) => base44.entities.BankTransaction.create({ ...data, source: 'يدوي', amount: parseFloat(data.amount) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['bankTransactions'] }); setShowDialog(false); toast.success('تمت العملية بنجاح'); },
+    mutationFn: async (data) => {
+      const amount = parseFloat(data.amount);
+      if (data.type === 'مصروف') {
+        // 1. Create official Expense record
+        const expense = await base44.entities.Expense.create({
+          expense_type: data.expense_type || 'أخرى',
+          amount,
+          payment_method: data.payment_method === 'نقدي' ? 'نقدي' : (data.payment_method || 'تحويل بنكي'),
+          description: data.reference_label || '',
+          expense_date: data.transaction_date,
+          created_by: user?.full_name || user?.email || '—',
+        });
+
+        // 2. Create BankTransaction linked to the Expense
+        await base44.entities.BankTransaction.create({
+          type: 'مصروف',
+          source: 'مصروف',
+          reference_id: expense.id,
+          reference_label: `${data.expense_type || 'مصروف'}${data.reference_label ? ' - ' + data.reference_label : ''}`,
+          payment_method: data.payment_method || 'مدى',
+          amount,
+          transaction_date: data.transaction_date,
+        });
+      } else {
+        // Regular Bank Income
+        await base44.entities.BankTransaction.create({
+          type: 'إيراد',
+          source: 'يدوي',
+          reference_label: data.reference_label || 'إيراد بنكي',
+          payment_method: data.payment_method || 'مدى',
+          amount,
+          transaction_date: data.transaction_date,
+        });
+      }
+    },
+    onSuccess: () => { 
+      queryClient.invalidateQueries(); 
+      setShowDialog(false); 
+      toast.success('تمت العملية وحفظ سند المصروف بنجاح'); 
+    },
   });
 
   const updateTransaction = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.BankTransaction.update(id, {
-      type: data.type,
-      reference_label: data.reference_label,
-      payment_method: data.payment_method,
-      amount: parseFloat(data.amount),
-      transaction_date: data.transaction_date,
-    }),
+    mutationFn: async ({ id, data }) => {
+      const amount = parseFloat(data.amount);
+      const currentTx = transactions.find(t => t.id === id);
+
+      await base44.entities.BankTransaction.update(id, {
+        type: data.type,
+        reference_label: data.reference_label,
+        payment_method: data.payment_method,
+        amount,
+        transaction_date: data.transaction_date,
+      });
+
+      if (data.type === 'مصروف') {
+        if (currentTx?.reference_id && (currentTx.source === 'مصروف' || currentTx.type === 'مصروف')) {
+          await base44.entities.Expense.update(currentTx.reference_id, {
+            expense_type: data.expense_type || 'أخرى',
+            amount,
+            payment_method: data.payment_method || 'تحويل بنكي',
+            description: data.reference_label || '',
+            expense_date: data.transaction_date,
+            edited_by: user?.full_name || user?.email || '—',
+          }).catch(() => {});
+        } else {
+          const exp = await base44.entities.Expense.create({
+            expense_type: data.expense_type || 'أخرى',
+            amount,
+            payment_method: data.payment_method || 'تحويل بنكي',
+            description: data.reference_label || '',
+            expense_date: data.transaction_date,
+            created_by: user?.full_name || user?.email || '—',
+          });
+          await base44.entities.BankTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
+        }
+      } else if (currentTx?.reference_id && currentTx.source === 'مصروف') {
+        await base44.entities.Expense.delete(currentTx.reference_id).catch(() => {});
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+      queryClient.invalidateQueries();
       setShowDialog(false);
       setEditTransactionId(null);
       setConfirmEdit(false);
-      toast.success('تم التعديل بنجاح');
+      toast.success('تم التعديل ومزامنة المصروف بنجاح');
     },
   });
 
   const deleteTransaction = useMutation({
-    mutationFn: (id) => base44.entities.BankTransaction.delete(id),
+    mutationFn: async (id) => {
+      const tx = transactions.find(t => t.id === id);
+      if (tx?.reference_id && tx.source === 'مصروف') {
+        await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
+      }
+      await base44.entities.BankTransaction.delete(id);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
+      queryClient.invalidateQueries();
       setDeleteTransactionId(null);
       toast.success('تم الحذف بنجاح');
     },
   });
+
+  // Self-heal: ensure past manual bank expenses are registered in Expense entity
+  React.useEffect(() => {
+    async function syncOrphanBankExpenses() {
+      try {
+        const [bankTx, existingExpenses] = await Promise.all([
+          base44.entities.BankTransaction.list('-created_date', 500),
+          base44.entities.Expense.list('-created_date', 500),
+        ]);
+        
+        const existingIds = new Set((existingExpenses || []).map(e => e.id));
+
+        const orphanBank = (bankTx || []).filter(t => 
+          t.type === 'مصروف' && 
+          t.source !== 'تحويل' && 
+          (!t.reference_id || !existingIds.has(t.reference_id))
+        );
+
+        if (orphanBank.length > 0) {
+          for (const t of orphanBank) {
+            const exp = await base44.entities.Expense.create({
+              expense_type: 'أخرى',
+              amount: parseFloat(t.amount),
+              payment_method: t.payment_method || 'تحويل بنكي',
+              description: t.reference_label || 'مصروف بنكي',
+              expense_date: t.transaction_date || todayGreg,
+              created_by: 'مزامنة تلقائية',
+            });
+            await base44.entities.BankTransaction.update(t.id, { reference_id: exp.id, source: 'مصروف' });
+          }
+          queryClient.invalidateQueries();
+        }
+      } catch (err) {
+        console.warn('Sync orphan bank expenses warning:', err);
+      }
+    }
+    syncOrphanBankExpenses();
+  }, []);
 
   const income = transactions.filter(t => t.type === 'إيراد').reduce((s, t) => s + (t.amount || 0), 0);
   const expense = transactions.filter(t => t.type === 'مصروف').reduce((s, t) => s + (t.amount || 0), 0);
@@ -77,11 +203,24 @@ export default function BankManagement() {
       <PageHeader
         title="البنك"
         description="إدارة الحسابات البنكية"
-        actions={<Button onClick={() => {
-          setForm({ type: 'إيراد', amount: '', reference_label: '', payment_method: 'مدى', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
-          setEditTransactionId(null);
-          setShowDialog(true);
-        }}><Plus className="w-4 h-4 ml-2" /> عملية جديدة</Button>}
+        actions={
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => {
+              setForm({ type: 'مصروف', expense_type: 'تجهيز فرح', amount: '', reference_label: '', payment_method: 'مدى', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+              setEditTransactionId(null);
+              setShowDialog(true);
+            }} className="bg-rose-600 hover:bg-rose-700 text-white gap-1 shadow-md shadow-rose-600/20 font-bold">
+              <Receipt className="w-4 h-4 ml-1" /> تسجيل مصروف بنكي
+            </Button>
+            <Button onClick={() => {
+              setForm({ type: 'إيراد', expense_type: 'تجهيز فرح', amount: '', reference_label: '', payment_method: 'مدى', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+              setEditTransactionId(null);
+              setShowDialog(true);
+            }} className="gap-1">
+              <Plus className="w-4 h-4 ml-1" /> عملية جديدة
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -128,8 +267,10 @@ export default function BankManagement() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                          const isExp = t.type === 'مصروف';
                           setForm({
                             type: t.type,
+                            expense_type: isExp ? (t.reference_label?.split(' - ')[0] || 'تجهيز فرح') : 'تجهيز فرح',
                             amount: String(t.amount || ''),
                             reference_label: t.reference_label || '',
                             payment_method: t.payment_method || 'مدى',
@@ -156,38 +297,153 @@ export default function BankManagement() {
         </Card>
       )}
 
+      {/* === Bank Transaction / Expense Dialog === */}
       <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) setEditTransactionId(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editTransactionId ? 'تعديل عملية بنكية' : 'عملية بنكية جديدة'}</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); if (editTransactionId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="space-y-4">
-            <div className="space-y-2">
-              <Label>النوع</Label>
-              <div className="flex gap-2">
-                <Button type="button" variant={form.type === 'إيراد' ? 'default' : 'outline'} className="flex-1" onClick={() => setForm({ ...form, type: 'إيراد' })}>إيراد</Button>
-                <Button type="button" variant={form.type === 'مصروف' ? 'default' : 'outline'} className="flex-1" onClick={() => setForm({ ...form, type: 'مصروف' })}>مصروف</Button>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
+          <div className={cn(
+            "p-5 pb-4 text-white border-b",
+            form.type === 'مصروف' 
+              ? "bg-gradient-to-r from-rose-950 via-rose-900 to-slate-900 border-rose-800/40"
+              : "bg-gradient-to-r from-cyan-950 via-cyan-900 to-slate-900 border-cyan-800/40"
+          )}>
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                "w-10 h-10 rounded-2xl flex items-center justify-center border",
+                form.type === 'مصروف'
+                  ? "bg-rose-500/20 border-rose-400/40 text-rose-400"
+                  : "bg-cyan-500/20 border-cyan-400/40 text-cyan-400"
+              )}>
+                {form.type === 'مصروف' ? <Receipt className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-white">
+                  {editTransactionId 
+                    ? (form.type === 'مصروف' ? 'تعديل سند مصروف بنكي' : 'تعديل إيراد بنكي') 
+                    : (form.type === 'مصروف' ? 'تسجيل مصروف بنكي تشغيلي' : 'تسجيل إيراد بنكي جديد')}
+                </DialogTitle>
+                <p className="text-[11px] text-white/80 font-medium">سند معتمد لقاعة قمة الريف 🇸🇦</p>
               </div>
             </div>
-            <div className="space-y-2"><Label>المبلغ</Label><Input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required dir="ltr" /></div>
+          </div>
+
+          <form onSubmit={e => { e.preventDefault(); if (editTransactionId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="space-y-2">
-              <Label>طريقة الدفع</Label>
-              <Select value={form.payment_method} onValueChange={v => setForm({ ...form, payment_method: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="مدى">مدى</SelectItem>
-                  <SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-black text-foreground">نوع العملية</Label>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant={form.type === 'إيراد' ? 'default' : 'outline'} 
+                  className={cn("flex-1 font-bold", form.type === 'إيراد' && "bg-cyan-700 hover:bg-cyan-800 text-white")}
+                  onClick={() => setForm({ ...form, type: 'إيراد' })}
+                >
+                  إيراد بنكي 🏦
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={form.type === 'مصروف' ? 'default' : 'outline'} 
+                  className={cn("flex-1 font-bold", form.type === 'مصروف' && "bg-rose-600 hover:bg-rose-700 text-white")}
+                  onClick={() => setForm({ ...form, type: 'مصروف' })}
+                >
+                  مصروف بنكي 🧾
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2"><Label>الوصف</Label><Input value={form.reference_label} onChange={e => setForm({ ...form, reference_label: e.target.value })} /></div>
+
+            {form.type === 'مصروف' && (
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-foreground">نوع وبند المصروف</Label>
+                <div className="flex flex-wrap gap-1.5 p-1 rounded-2xl bg-muted/40 border border-border/60">
+                  {EXPENSE_TYPES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm({ ...form, expense_type: t })}
+                      className={cn(
+                        "text-xs font-bold px-2.5 py-1.5 rounded-xl transition-all",
+                        (form.expense_type || 'تجهيز فرح') === t
+                          ? "bg-rose-600 text-white shadow-sm font-black scale-105"
+                          : "bg-card text-muted-foreground hover:text-foreground border border-border/60"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">المبلغ *</Label>
+              <div className="relative">
+                <Input 
+                  type="number" 
+                  value={form.amount} 
+                  onChange={e => setForm({ ...form, amount: e.target.value })} 
+                  required 
+                  dir="ltr" 
+                  placeholder="0.00"
+                  className={cn(
+                    "h-11 text-base font-black text-left pl-3 pr-12 rounded-2xl bg-card",
+                    form.type === 'مصروف' ? "border-rose-500/30 text-rose-600" : "border-cyan-500/30 text-cyan-600"
+                  )}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                  ر.س
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">طريقة الدفع / القناة</Label>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-muted/50 border border-border/60">
+                {[
+                  { id: 'مدى', label: 'شبكة مدى 💳' },
+                  { id: 'تحويل بنكي', label: 'تحويل بنكي 🏦' },
+                ].map(pm => (
+                  <button
+                    key={pm.id}
+                    type="button"
+                    onClick={() => setForm({ ...form, payment_method: pm.id })}
+                    className={cn(
+                      "py-2 rounded-xl text-xs font-bold transition-all",
+                      form.payment_method === pm.id
+                        ? "bg-card text-foreground shadow-sm font-black border border-border/80"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {pm.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">{form.type === 'مصروف' ? 'بيان وتفاصيل المصروف' : 'الوصف والملاحظات'}</Label>
+              <Input 
+                value={form.reference_label} 
+                onChange={e => setForm({ ...form, reference_label: e.target.value })} 
+                placeholder={form.type === 'مصروف' ? 'مثال: سداد فاتورة كهرباء، صيانة أجهزة، كماليات...' : 'تفاصيل الإيراد البنكي...'}
+                className="rounded-2xl bg-card text-xs border-border/80"
+              />
+            </div>
+
             <HijriDatePicker
-              label="التاريخ"
+              label="تاريخ العملية"
               value={{ hijri: form.transaction_date_hijri, gregorian: form.transaction_date }}
-              onChange={({ hijri, gregorian }) => setForm({ ...form, transaction_date: gregorian, transaction_date_hijri: hijri })}
+              onChange={({ hijri, gregorian }) => setForm(f => ({ ...f, transaction_date: gregorian, transaction_date_hijri: hijri }))}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>إلغاء</Button>
-              <Button type="submit" disabled={create.isPending || updateTransaction.isPending}>
-                {editTransactionId ? 'تعديل' : 'حفظ'}
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setShowDialog(false)} className="rounded-xl">إلغاء</Button>
+              <Button 
+                type="submit" 
+                disabled={create.isPending || updateTransaction.isPending}
+                className={cn(
+                  "rounded-xl font-black text-white",
+                  form.type === 'مصروف' ? "bg-rose-600 hover:bg-rose-700" : "bg-cyan-700 hover:bg-cyan-800"
+                )}
+              >
+                {editTransactionId ? 'حفظ التعديل' : (form.type === 'مصروف' ? 'حفظ سند المصروف' : 'حفظ الإيراد')}
               </Button>
             </DialogFooter>
           </form>

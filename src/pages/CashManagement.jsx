@@ -21,6 +21,12 @@ import { toast } from 'sonner';
 import { buildPaymentReceipt } from '@/components/print/PaymentReceipt';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/lib/AuthContext';
+import { cn } from '@/lib/utils';
+
+const EXPENSE_TYPES = [
+  'كهرباء', 'عمالة', 'صيانة', 'رواتب', 'إدارية', 'طارئة', 'بنكية',
+  'تجهيز فرح', 'زهور وديكور', 'كماليات', 'مشتريات', 'أخرى'
+];
 
 export default function CashManagement() {
   const todayGreg = new Date().toISOString().split('T')[0];
@@ -30,7 +36,10 @@ export default function CashManagement() {
 
   // Manual transaction form
   const [form, setForm] = useState({
-    type: 'إيراد', amount: '', reference_label: '',
+    type: 'إيراد',
+    expense_type: 'تجهيز فرح',
+    amount: '',
+    reference_label: '',
     transaction_date: todayGreg,
     transaction_date_hijri: gregorianToHijri(todayGreg),
   });
@@ -91,17 +100,45 @@ export default function CashManagement() {
 
   const selectedBooking = pendingBookings.find(b => b.id === bookingPayForm.selectedBookingId) || null;
 
-  // Create manual cash transaction
+  // Create manual cash transaction (Auto-sync with Expense entity if type is مصروف)
   const createManual = useMutation({
-    mutationFn: (data) => base44.entities.CashTransaction.create({
-      ...data,
-      source: 'يدوي',
-      amount: parseFloat(data.amount),
-    }),
+    mutationFn: async (data) => {
+      const amount = parseFloat(data.amount);
+      if (data.type === 'مصروف') {
+        // 1. Create official Expense record
+        const expense = await base44.entities.Expense.create({
+          expense_type: data.expense_type || 'أخرى',
+          amount,
+          payment_method: 'نقدي',
+          description: data.reference_label || '',
+          expense_date: data.transaction_date,
+          created_by: user?.full_name || user?.email || '—',
+        });
+
+        // 2. Create CashTransaction linked to the Expense
+        await base44.entities.CashTransaction.create({
+          type: 'مصروف',
+          source: 'مصروف',
+          reference_id: expense.id,
+          reference_label: `${data.expense_type || 'مصروف'}${data.reference_label ? ' - ' + data.reference_label : ''}`,
+          amount,
+          transaction_date: data.transaction_date,
+        });
+      } else {
+        // Regular Cash Income
+        await base44.entities.CashTransaction.create({
+          type: 'إيراد',
+          source: 'يدوي',
+          reference_label: data.reference_label || 'إيراد نقدي يدوي',
+          amount,
+          transaction_date: data.transaction_date,
+        });
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
+      queryClient.invalidateQueries();
       setDialogMode(null);
-      toast.success('تمت العملية بنجاح');
+      toast.success('تمت العملية وحفظ سند المصروف بنجاح');
     },
   });
 
@@ -157,32 +194,110 @@ export default function CashManagement() {
     },
   });
 
-  // Update manual cash transaction
+  // Update manual cash transaction (and linked Expense if applicable)
   const updateManual = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.CashTransaction.update(id, {
-      type: data.type,
-      reference_label: data.reference_label,
-      amount: parseFloat(data.amount),
-      transaction_date: data.transaction_date,
-    }),
+    mutationFn: async ({ id, data }) => {
+      const amount = parseFloat(data.amount);
+      const currentTx = transactions.find(t => t.id === id);
+
+      // 1. Update the cash transaction
+      await base44.entities.CashTransaction.update(id, {
+        type: data.type,
+        reference_label: data.reference_label,
+        amount,
+        transaction_date: data.transaction_date,
+      });
+
+      // 2. If it is an Expense, update or create/delete the Expense
+      if (data.type === 'مصروف') {
+        if (currentTx?.reference_id && (currentTx.source === 'مصروف' || currentTx.type === 'مصروف')) {
+          await base44.entities.Expense.update(currentTx.reference_id, {
+            expense_type: data.expense_type || 'أخرى',
+            amount,
+            payment_method: 'نقدي',
+            description: data.reference_label || '',
+            expense_date: data.transaction_date,
+            edited_by: user?.full_name || user?.email || '—',
+          }).catch(() => {});
+        } else {
+          // If it wasn't linked before, create the Expense now and link it
+          const exp = await base44.entities.Expense.create({
+            expense_type: data.expense_type || 'أخرى',
+            amount,
+            payment_method: 'نقدي',
+            description: data.reference_label || '',
+            expense_date: data.transaction_date,
+            created_by: user?.full_name || user?.email || '—',
+          });
+          await base44.entities.CashTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
+        }
+      } else if (currentTx?.reference_id && currentTx.source === 'مصروف') {
+        // Changed from expense to income, delete the old expense
+        await base44.entities.Expense.delete(currentTx.reference_id).catch(() => {});
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
+      queryClient.invalidateQueries();
       setDialogMode(null);
       setEditTransactionId(null);
       setConfirmEdit(false);
-      toast.success('تم التعديل بنجاح');
+      toast.success('تم التعديل ومزامنة المصروف بنجاح');
     },
   });
 
-  // Delete cash transaction
+  // Delete cash transaction (and linked Expense if applicable)
   const deleteTransaction = useMutation({
-    mutationFn: (id) => base44.entities.CashTransaction.delete(id),
+    mutationFn: async (id) => {
+      const tx = transactions.find(t => t.id === id);
+      if (tx?.reference_id && tx.source === 'مصروف') {
+        await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
+      }
+      await base44.entities.CashTransaction.delete(id);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
+      queryClient.invalidateQueries();
       setDeleteTransactionId(null);
       toast.success('تم الحذف بنجاح');
     },
   });
+
+  // Self-heal: ensure past manual cash expenses are registered in Expense entity
+  React.useEffect(() => {
+    async function syncOrphanExpenses() {
+      try {
+        const [cashTx, existingExpenses] = await Promise.all([
+          base44.entities.CashTransaction.list('-created_date', 500),
+          base44.entities.Expense.list('-created_date', 500),
+        ]);
+        
+        const existingIds = new Set((existingExpenses || []).map(e => e.id));
+
+        const orphanCash = (cashTx || []).filter(t => 
+          t.type === 'مصروف' && 
+          t.source !== 'تحويل' && 
+          (!t.reference_id || !existingIds.has(t.reference_id))
+        );
+
+        if (orphanCash.length > 0) {
+          for (const t of orphanCash) {
+            const exp = await base44.entities.Expense.create({
+              expense_type: 'أخرى',
+              amount: parseFloat(t.amount),
+              payment_method: 'نقدي',
+              description: t.reference_label || 'مصروف خزينة',
+              expense_date: t.transaction_date || todayGreg,
+              created_by: 'مزامنة تلقائية',
+            });
+            await base44.entities.CashTransaction.update(t.id, { reference_id: exp.id, source: 'مصروف' });
+          }
+          queryClient.invalidateQueries();
+        }
+      } catch (err) {
+        console.warn('Sync orphan cash expenses warning:', err);
+      }
+    }
+    syncOrphanExpenses();
+  }, []);
 
   // Transfer between cash and bank
   const transferFunds = useMutation({
@@ -232,11 +347,16 @@ export default function CashManagement() {
   const openDialog = (mode, transaction = null) => {
     setSavedReceiptData(null);
     if (mode === 'manual') {
-      setForm({ type: 'إيراد', amount: '', reference_label: '', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+      setForm({ type: 'إيراد', expense_type: 'تجهيز فرح', amount: '', reference_label: '', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+      setEditTransactionId(null);
+    } else if (mode === 'expense') {
+      setForm({ type: 'مصروف', expense_type: 'تجهيز فرح', amount: '', reference_label: '', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
       setEditTransactionId(null);
     } else if (mode === 'edit') {
+      const isExp = transaction.type === 'مصروف';
       setForm({
         type: transaction.type,
+        expense_type: isExp ? (transaction.reference_label?.split(' - ')[0] || 'أخرى') : 'تجهيز فرح',
         amount: String(transaction.amount || ''),
         reference_label: transaction.reference_label || '',
         transaction_date: transaction.transaction_date,
@@ -266,9 +386,12 @@ export default function CashManagement() {
         title="الخزينة"
         description="إدارة النقدية"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" onClick={() => openDialog('booking')} className="gap-1">
               <Users className="w-4 h-4" /> سداد من عميل
+            </Button>
+            <Button onClick={() => openDialog('expense')} className="bg-rose-600 hover:bg-rose-700 text-white gap-1 shadow-md shadow-rose-600/20 font-bold">
+              <Receipt className="w-4 h-4" /> تسجيل مصروف نقدي
             </Button>
             <Button onClick={() => openDialog('manual')} className="gap-1">
               <Plus className="w-4 h-4" /> عملية يدوية
@@ -364,35 +487,129 @@ export default function CashManagement() {
         </Card>
       )}
 
-      {/* === Manual Transaction Dialog === */}
-      <Dialog open={dialogMode === 'manual' || dialogMode === 'edit'} onOpenChange={() => setDialogMode(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{dialogMode === 'edit' ? 'تعديل عملية خزينة' : 'عملية خزينة يدوية'}</DialogTitle></DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); if (dialogMode === 'edit') { setConfirmEdit(true); } else { createManual.mutate(form); } }} className="space-y-4">
-            <div className="space-y-2">
-              <Label>النوع</Label>
-              <div className="flex gap-2">
-                <Button type="button" variant={form.type === 'إيراد' ? 'default' : 'outline'} className="flex-1" onClick={() => setForm({ ...form, type: 'إيراد' })}>إيراد</Button>
-                <Button type="button" variant={form.type === 'مصروف' ? 'default' : 'outline'} className="flex-1" onClick={() => setForm({ ...form, type: 'مصروف' })}>مصروف</Button>
+      {/* === Manual / Expense Transaction Dialog === */}
+      <Dialog open={dialogMode === 'manual' || dialogMode === 'edit' || dialogMode === 'expense'} onOpenChange={() => setDialogMode(null)}>
+        <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
+          <div className={cn(
+            "p-5 pb-4 text-white border-b",
+            form.type === 'مصروف' 
+              ? "bg-gradient-to-r from-rose-950 via-rose-900 to-slate-900 border-rose-800/40"
+              : "bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 border-emerald-800/40"
+          )}>
+            <div className="flex items-center gap-2.5">
+              <div className={cn(
+                "w-10 h-10 rounded-2xl flex items-center justify-center border",
+                form.type === 'مصروف'
+                  ? "bg-rose-500/20 border-rose-400/40 text-rose-400"
+                  : "bg-emerald-500/20 border-emerald-400/40 text-emerald-400"
+              )}>
+                {form.type === 'مصروف' ? <Receipt className="w-5 h-5" /> : <Wallet className="w-5 h-5" />}
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-white">
+                  {dialogMode === 'edit' 
+                    ? (form.type === 'مصروف' ? 'تعديل سند مصروف الخزينة' : 'تعديل إيراد الخزينة') 
+                    : (form.type === 'مصروف' ? 'تسجيل مصروف خزينة تشغيلي (نقدي)' : 'تسجيل إيراد خزينة يدوي')}
+                </DialogTitle>
+                <p className="text-[11px] text-white/80 font-medium">سند معتمد لقاعة قمة الريف 🇸🇦</p>
               </div>
             </div>
+          </div>
+
+          <form onSubmit={e => { e.preventDefault(); if (dialogMode === 'edit') { setConfirmEdit(true); } else { createManual.mutate(form); } }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
             <div className="space-y-2">
-              <Label>المبلغ *</Label>
-              <Input type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required dir="ltr" />
+              <Label className="text-xs font-black text-foreground">نوع العملية</Label>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant={form.type === 'إيراد' ? 'default' : 'outline'} 
+                  className={cn("flex-1 font-bold", form.type === 'إيراد' && "bg-emerald-600 hover:bg-emerald-700 text-white")}
+                  onClick={() => setForm({ ...form, type: 'إيراد' })}
+                >
+                  إيراد خزينة 💵
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={form.type === 'مصروف' ? 'default' : 'outline'} 
+                  className={cn("flex-1 font-bold", form.type === 'مصروف' && "bg-rose-600 hover:bg-rose-700 text-white")}
+                  onClick={() => setForm({ ...form, type: 'مصروف' })}
+                >
+                  مصروف خزينة 🧾
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>الوصف</Label>
-              <Input value={form.reference_label} onChange={e => setForm({ ...form, reference_label: e.target.value })} />
+
+            {form.type === 'مصروف' && (
+              <div className="space-y-2">
+                <Label className="text-xs font-black text-foreground">نوع وبند المصروف</Label>
+                <div className="flex flex-wrap gap-1.5 p-1 rounded-2xl bg-muted/40 border border-border/60">
+                  {EXPENSE_TYPES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm({ ...form, expense_type: t })}
+                      className={cn(
+                        "text-xs font-bold px-2.5 py-1.5 rounded-xl transition-all",
+                        (form.expense_type || 'تجهيز فرح') === t
+                          ? "bg-rose-600 text-white shadow-sm font-black scale-105"
+                          : "bg-card text-muted-foreground hover:text-foreground border border-border/60"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">المبلغ *</Label>
+              <div className="relative">
+                <Input 
+                  type="number" 
+                  value={form.amount} 
+                  onChange={e => setForm({ ...form, amount: e.target.value })} 
+                  required 
+                  dir="ltr" 
+                  placeholder="0.00"
+                  className={cn(
+                    "h-11 text-base font-black text-left pl-3 pr-12 rounded-2xl bg-card",
+                    form.type === 'مصروف' ? "border-rose-500/30 text-rose-600" : "border-emerald-500/30 text-emerald-600"
+                  )}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                  ر.س
+                </span>
+              </div>
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-black text-foreground">{form.type === 'مصروف' ? 'بيان وتفاصيل المصروف' : 'الوصف والملاحظات'}</Label>
+              <Input 
+                value={form.reference_label} 
+                onChange={e => setForm({ ...form, reference_label: e.target.value })} 
+                placeholder={form.type === 'مصروف' ? 'مثال: فاتورة صيانة تكييف، شراء بخور، دفعة عمالة...' : 'تفاصيل الإيراد...'}
+                className="rounded-2xl bg-card text-xs border-border/80"
+              />
+            </div>
+
             <HijriDatePicker
-              label="التاريخ"
+              label="تاريخ العملية"
               value={{ hijri: form.transaction_date_hijri, gregorian: form.transaction_date }}
               onChange={({ hijri, gregorian }) => setForm(f => ({ ...f, transaction_date: gregorian, transaction_date_hijri: hijri }))}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogMode(null)}>إلغاء</Button>
-              <Button type="submit" disabled={createManual.isPending || updateManual.isPending}>
-                {dialogMode === 'edit' ? 'تعديل' : 'حفظ'}
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setDialogMode(null)} className="rounded-xl">إلغاء</Button>
+              <Button 
+                type="submit" 
+                disabled={createManual.isPending || updateManual.isPending}
+                className={cn(
+                  "rounded-xl font-black text-white",
+                  form.type === 'مصروف' ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+                )}
+              >
+                {dialogMode === 'edit' ? 'حفظ التعديل' : (form.type === 'مصروف' ? 'حفظ سند المصروف' : 'حفظ الإيراد')}
               </Button>
             </DialogFooter>
           </form>
