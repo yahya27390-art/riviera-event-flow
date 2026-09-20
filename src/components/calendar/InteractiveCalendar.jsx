@@ -30,11 +30,11 @@ export function getSectionBadge(section) {
   if (isBothSection(s)) {
     return {
       type: 'both',
-      label: 'رجال ونساء',
-      shortLabel: 'رجال ونساء',
+      label: 'القاعتين معاً (رجال ونساء)',
+      shortLabel: 'القاعتين معاً',
       badgeClass: 'bg-purple-100 text-purple-800 dark:text-purple-200 border-purple-300 font-bold',
-      dotClass: 'bg-amber-500',
-      cellBg: 'bg-purple-50/80 dark:bg-purple-950/20',
+      dotClass: 'bg-purple-600',
+      cellBg: 'bg-purple-50/90 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800/80',
       icon: '👑',
     };
   }
@@ -216,39 +216,85 @@ export default function InteractiveCalendar({ bookings = [] }) {
     window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');
   };
 
-  // ─── Day Cell: circles (blue=men, pink=women) with hover tooltip ────────────
+  // ─── Day Cell: distinct light background per section + section dots ────────────
   const renderDayCell = (dayNumber, dayBookings, isToday, gregorianDate, dayOfWeekName) => {
-    const status = getDayStatus(dayBookings);
     const isWeekend = dayOfWeekName === 'الخميس' || dayOfWeekName === 'الجمعة';
     const isSelected = inlineSelectedDate === gregorianDate;
 
     // Derive which section types exist today
-    const hasMenBooking  = dayBookings.some(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('رجال'));
+    const hasBothBooking  = dayBookings.some(b => isBothSection(b.hall_section));
+    const hasMenBooking   = dayBookings.some(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('رجال'));
     const hasWomenBooking = dayBookings.some(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('نساء'));
-    const hasBothBooking = dayBookings.some(b => isBothSection(b.hall_section));
 
-    // For tooltip: build customer list per section
+    // Customer names per section for tooltips
     const menNames = dayBookings.filter(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('رجال')).map(b => b.customer_name).join('، ');
     const womenNames = dayBookings.filter(b => !isBothSection(b.hall_section) && (b.hall_section || '').includes('نساء')).map(b => b.customer_name).join('، ');
     const bothNames = dayBookings.filter(b => isBothSection(b.hall_section)).map(b => b.customer_name).join('، ');
 
-    // Cell background
-    let bg = isWeekend ? 'bg-amber-50/60 dark:bg-amber-950/10' : 'bg-card';
-    if (isSelected) bg = 'bg-amber-500/15 dark:bg-amber-900/30';
-    else if (isToday) bg = 'bg-emerald-50 dark:bg-emerald-950/20';
+    // 1. Day Cell Background & Border (درجات فاتحة مميزة لكل نوع حجز)
+    let dayBg = isWeekend ? 'bg-amber-50/40 dark:bg-amber-950/10' : 'bg-card';
+    let dayBorder = isWeekend ? 'border-amber-200/60 dark:border-amber-900/30' : 'border-border/60';
+    let dayNumberColor = 'text-foreground';
 
+    if (dayBookings.length > 0) {
+      if (hasBothBooking) {
+        // القاعتين معاً (كامل القاعة) -> لون بنفسجي / أرجواني فاتح ملكي
+        dayBg = 'bg-purple-50/95 hover:bg-purple-100/90 dark:bg-purple-950/40 dark:hover:bg-purple-950/60';
+        dayBorder = 'border-purple-300 dark:border-purple-800/80 shadow-xs shadow-purple-500/10';
+        dayNumberColor = 'text-purple-900 dark:text-purple-200 font-black';
+      } else if (hasMenBooking && hasWomenBooking) {
+        // حجزين منفصلين (رجال + نساء) في نفس اليوم -> تدرج سماوي ووردي فاتح
+        dayBg = 'bg-gradient-to-br from-sky-50/95 via-purple-50/50 to-rose-50/95 hover:from-sky-100 hover:to-rose-100 dark:from-sky-950/40 dark:via-purple-950/30 dark:to-rose-950/40';
+        dayBorder = 'border-purple-300 dark:border-purple-800/80 shadow-xs shadow-purple-500/10';
+        dayNumberColor = 'text-purple-900 dark:text-purple-200 font-black';
+      } else if (hasMenBooking) {
+        // رجال فقط -> لون أزرق سماوي فاتح
+        dayBg = 'bg-sky-50/95 hover:bg-sky-100/90 dark:bg-sky-950/40 dark:hover:bg-sky-950/60';
+        dayBorder = 'border-sky-300 dark:border-sky-800/80 shadow-xs shadow-sky-500/10';
+        dayNumberColor = 'text-sky-900 dark:text-sky-200 font-black';
+      } else if (hasWomenBooking) {
+        // نساء فقط -> لون وردي ناعم فاتح
+        dayBg = 'bg-rose-50/95 hover:bg-rose-100/90 dark:bg-rose-950/40 dark:hover:bg-rose-950/60';
+        dayBorder = 'border-rose-300 dark:border-rose-800/80 shadow-xs shadow-rose-500/10';
+        dayNumberColor = 'text-rose-900 dark:text-rose-200 font-black';
+      }
+    }
+
+    // 2. Selection and Today Ring highlights
     let ring = '';
-    if (isSelected) ring = 'ring-2 ring-amber-500';
-    else if (isToday) ring = 'ring-2 ring-emerald-500';
+    if (isSelected) {
+      ring = 'ring-2 ring-amber-500 shadow-md scale-[1.02] z-10';
+      dayBorder = 'border-amber-400 dark:border-amber-500';
+    } else if (isToday) {
+      ring = 'ring-2 ring-emerald-500/80';
+      dayBorder = 'border-emerald-400 dark:border-emerald-500';
+    }
 
-    // Circle components with hover tooltip
-    const MenCircle = ({ name }) => (
+    // 3. Section Dots Components with hover tooltips
+    const BothCircle = ({ name }) => (
       <div className="relative group/dot flex-shrink-0">
-        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-sky-500 shadow-md shadow-sky-500/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95" />
+        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-purple-600 shadow-md shadow-purple-600/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 text-[9px] sm:text-[10px] text-white font-black leading-none">
+          👑
+        </span>
         {name && (
           <div className="absolute bottom-full mb-1.5 right-1/2 translate-x-1/2 z-50 pointer-events-none">
-            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-sky-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
-              👔 {name}
+            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-purple-950 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-xl border border-purple-700/50">
+              👑 القاعتين معاً: {name}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+
+    const MenCircle = ({ name }) => (
+      <div className="relative group/dot flex-shrink-0">
+        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-sky-500 shadow-md shadow-sky-500/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 text-[9px] text-white font-bold leading-none">
+          👔
+        </span>
+        {name && (
+          <div className="absolute bottom-full mb-1.5 right-1/2 translate-x-1/2 z-50 pointer-events-none">
+            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-sky-950 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-xl border border-sky-700/50">
+              👔 رجال فقط: {name}
             </div>
           </div>
         )}
@@ -257,11 +303,13 @@ export default function InteractiveCalendar({ bookings = [] }) {
 
     const WomenCircle = ({ name }) => (
       <div className="relative group/dot flex-shrink-0">
-        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-400 shadow-md shadow-rose-400/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95" />
+        <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-400 shadow-md shadow-rose-400/40 border-2 border-white dark:border-slate-900 flex items-center justify-center cursor-pointer transition-transform hover:scale-110 active:scale-95 text-[9px] text-white font-bold leading-none">
+          🌸
+        </span>
         {name && (
           <div className="absolute bottom-full mb-1.5 right-1/2 translate-x-1/2 z-50 pointer-events-none">
-            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-rose-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap shadow-xl">
-              🌸 {name}
+            <div className="opacity-0 group-hover/dot:opacity-100 transition-opacity duration-200 bg-rose-950 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg whitespace-nowrap shadow-xl border border-rose-700/50">
+              🌸 نساء فقط: {name}
             </div>
           </div>
         )}
@@ -277,8 +325,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
         className={cn(
           "relative rounded-xl border p-1 flex flex-col items-center gap-1",
           "min-h-[64px] sm:min-h-[80px] transition-all duration-150 active:scale-95 cursor-pointer select-none",
-          bg, ring,
-          isSelected ? 'border-amber-400' : isToday ? 'border-emerald-400' : 'border-border/60'
+          dayBg, dayBorder, ring
         )}
       >
         {/* Day number */}
@@ -286,32 +333,29 @@ export default function InteractiveCalendar({ bookings = [] }) {
           "text-sm sm:text-base font-black leading-none mt-1",
           isToday ? "text-emerald-600 dark:text-emerald-400"
             : isSelected ? "text-amber-600 dark:text-amber-400"
-            : "text-foreground"
+            : dayNumberColor
         )}>
           {dayNumber}
         </span>
 
         {/* Today indicator */}
         {isToday && (
-          <span className="w-1 h-1 rounded-full bg-emerald-500" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
         )}
 
-        {/* Section Circles */}
+        {/* Section Circles & Indicators */}
         {dayBookings.length > 0 && (
           <div className="flex items-center justify-center gap-1 flex-wrap mt-auto pb-0.5">
-            {/* Both booking = blue + pink circles together */}
+            {/* Both halls booked together */}
             {hasBothBooking && (
-              <>
-                <MenCircle name={bothNames} />
-                <WomenCircle name={bothNames} />
-              </>
+              <BothCircle name={bothNames} />
             )}
-            {/* Men-only booking */}
-            {!hasBothBooking && hasMenBooking && (
+            {/* Men booking */}
+            {hasMenBooking && !hasBothBooking && (
               <MenCircle name={menNames} />
             )}
-            {/* Women-only booking */}
-            {!hasBothBooking && hasWomenBooking && (
+            {/* Women booking */}
+            {hasWomenBooking && !hasBothBooking && (
               <WomenCircle name={womenNames} />
             )}
             {/* Extra bookings count */}
@@ -422,24 +466,35 @@ export default function InteractiveCalendar({ bookings = [] }) {
             </div>
           </div>
 
-          {/* Row 3: Stats strip + legend */}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" /> {monthStats.availableDays} متاح
-            </span>
-            <span className="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300">
-              <span className="w-2 h-2 rounded-full bg-rose-500" /> {monthStats.bookedDays} محجوز
-            </span>
-            {monthStats.partialDays > 0 && (
-              <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                <span className="w-2 h-2 rounded-full bg-amber-500" /> {monthStats.partialDays} جزئي
+          {/* Row 3: Stats strip + section color legend */}
+          <div className="flex items-center justify-between gap-2 mt-3 flex-wrap pt-2 border-t border-border/40">
+            {/* Availability stats */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" /> {monthStats.availableDays} متاح
               </span>
-            )}
-            <span className="mr-auto hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground font-semibold">
-              <span>👑 رجال ونساء</span>
-              <span>👔 رجال فقط</span>
-              <span>🌸 نساء فقط</span>
-            </span>
+              <span className="flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/30 px-2 py-0.5 rounded-lg border border-rose-200 dark:border-rose-800/40">
+                <span className="w-2 h-2 rounded-full bg-rose-500" /> {monthStats.bookedDays} محجوز
+              </span>
+              {monthStats.partialDays > 0 && (
+                <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" /> {monthStats.partialDays} جزئي
+                </span>
+              )}
+            </div>
+
+            {/* Sections Color Legend with light backgrounds and dots */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-sky-800 dark:text-sky-200 bg-sky-50 dark:bg-sky-950/40 px-2 py-0.5 rounded-lg border border-sky-300/80 dark:border-sky-800/60 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shadow-xs shadow-sky-500/50" /> رجال فقط
+              </span>
+              <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-rose-800 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-300/80 dark:border-rose-800/60 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-xs shadow-rose-400/50" /> نساء فقط
+              </span>
+              <span className="flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-purple-800 dark:text-purple-200 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-lg border border-purple-300/80 dark:border-purple-800/60 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 shadow-xs shadow-purple-600/50" /> القاعتين معاً
+              </span>
+            </div>
           </div>
         </CardHeader>
 
