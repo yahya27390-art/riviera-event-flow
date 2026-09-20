@@ -112,7 +112,7 @@ export default function CashManagement() {
           payment_method: 'نقدي',
           description: data.reference_label || '',
           expense_date: data.transaction_date,
-          created_by: user?.full_name || user?.email || '—',
+          edited_by: user?.full_name || user?.email || '—',
         });
 
         // 2. Create CashTransaction linked to the Expense
@@ -140,6 +140,10 @@ export default function CashManagement() {
       setDialogMode(null);
       toast.success('تمت العملية وحفظ سند المصروف بنجاح');
     },
+    onError: (err) => {
+      console.error('Error creating cash transaction:', err);
+      toast.error('تعذر حفظ العملية: ' + (err?.message || 'يرجى المحاولة مرة أخرى'));
+    }
   });
 
   // Create booking payment + update booking + create cash transaction
@@ -227,7 +231,7 @@ export default function CashManagement() {
             payment_method: 'نقدي',
             description: data.reference_label || '',
             expense_date: data.transaction_date,
-            created_by: user?.full_name || user?.email || '—',
+            edited_by: user?.full_name || user?.email || '—',
           });
           await base44.entities.CashTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
         }
@@ -243,6 +247,10 @@ export default function CashManagement() {
       setConfirmEdit(false);
       toast.success('تم التعديل ومزامنة المصروف بنجاح');
     },
+    onError: (err) => {
+      console.error('Error updating cash transaction:', err);
+      toast.error('تعذر تعديل العملية: ' + (err?.message || 'يرجى المحاولة مرة أخرى'));
+    }
   });
 
   // Delete cash transaction (and linked Expense if applicable)
@@ -260,44 +268,6 @@ export default function CashManagement() {
       toast.success('تم الحذف بنجاح');
     },
   });
-
-  // Self-heal: ensure past manual cash expenses are registered in Expense entity
-  React.useEffect(() => {
-    async function syncOrphanExpenses() {
-      try {
-        const [cashTx, existingExpenses] = await Promise.all([
-          base44.entities.CashTransaction.list('-created_date', 500),
-          base44.entities.Expense.list('-created_date', 500),
-        ]);
-        
-        const existingIds = new Set((existingExpenses || []).map(e => e.id));
-
-        const orphanCash = (cashTx || []).filter(t => 
-          t.type === 'مصروف' && 
-          t.source !== 'تحويل' && 
-          (!t.reference_id || !existingIds.has(t.reference_id))
-        );
-
-        if (orphanCash.length > 0) {
-          for (const t of orphanCash) {
-            const exp = await base44.entities.Expense.create({
-              expense_type: 'أخرى',
-              amount: parseFloat(t.amount),
-              payment_method: 'نقدي',
-              description: t.reference_label || 'مصروف خزينة',
-              expense_date: t.transaction_date || todayGreg,
-              created_by: 'مزامنة تلقائية',
-            });
-            await base44.entities.CashTransaction.update(t.id, { reference_id: exp.id, source: 'مصروف' });
-          }
-          queryClient.invalidateQueries();
-        }
-      } catch (err) {
-        console.warn('Sync orphan cash expenses warning:', err);
-      }
-    }
-    syncOrphanExpenses();
-  }, []);
 
   // Transfer between cash and bank
   const transferFunds = useMutation({

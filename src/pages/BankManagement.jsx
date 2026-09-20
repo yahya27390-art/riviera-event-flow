@@ -62,7 +62,7 @@ export default function BankManagement() {
           payment_method: data.payment_method === 'نقدي' ? 'نقدي' : (data.payment_method || 'تحويل بنكي'),
           description: data.reference_label || '',
           expense_date: data.transaction_date,
-          created_by: user?.full_name || user?.email || '—',
+          edited_by: user?.full_name || user?.email || '—',
         });
 
         // 2. Create BankTransaction linked to the Expense
@@ -92,6 +92,10 @@ export default function BankManagement() {
       setShowDialog(false); 
       toast.success('تمت العملية وحفظ سند المصروف بنجاح'); 
     },
+    onError: (err) => {
+      console.error('Error creating bank transaction:', err);
+      toast.error('تعذر حفظ العملية: ' + (err?.message || 'يرجى المحاولة مرة أخرى'));
+    }
   });
 
   const updateTransaction = useMutation({
@@ -124,7 +128,7 @@ export default function BankManagement() {
             payment_method: data.payment_method || 'تحويل بنكي',
             description: data.reference_label || '',
             expense_date: data.transaction_date,
-            created_by: user?.full_name || user?.email || '—',
+            edited_by: user?.full_name || user?.email || '—',
           });
           await base44.entities.BankTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
         }
@@ -139,6 +143,10 @@ export default function BankManagement() {
       setConfirmEdit(false);
       toast.success('تم التعديل ومزامنة المصروف بنجاح');
     },
+    onError: (err) => {
+      console.error('Error updating bank transaction:', err);
+      toast.error('تعذر تعديل العملية: ' + (err?.message || 'يرجى المحاولة مرة أخرى'));
+    }
   });
 
   const deleteTransaction = useMutation({
@@ -155,44 +163,6 @@ export default function BankManagement() {
       toast.success('تم الحذف بنجاح');
     },
   });
-
-  // Self-heal: ensure past manual bank expenses are registered in Expense entity
-  React.useEffect(() => {
-    async function syncOrphanBankExpenses() {
-      try {
-        const [bankTx, existingExpenses] = await Promise.all([
-          base44.entities.BankTransaction.list('-created_date', 500),
-          base44.entities.Expense.list('-created_date', 500),
-        ]);
-        
-        const existingIds = new Set((existingExpenses || []).map(e => e.id));
-
-        const orphanBank = (bankTx || []).filter(t => 
-          t.type === 'مصروف' && 
-          t.source !== 'تحويل' && 
-          (!t.reference_id || !existingIds.has(t.reference_id))
-        );
-
-        if (orphanBank.length > 0) {
-          for (const t of orphanBank) {
-            const exp = await base44.entities.Expense.create({
-              expense_type: 'أخرى',
-              amount: parseFloat(t.amount),
-              payment_method: t.payment_method || 'تحويل بنكي',
-              description: t.reference_label || 'مصروف بنكي',
-              expense_date: t.transaction_date || todayGreg,
-              created_by: 'مزامنة تلقائية',
-            });
-            await base44.entities.BankTransaction.update(t.id, { reference_id: exp.id, source: 'مصروف' });
-          }
-          queryClient.invalidateQueries();
-        }
-      } catch (err) {
-        console.warn('Sync orphan bank expenses warning:', err);
-      }
-    }
-    syncOrphanBankExpenses();
-  }, []);
 
   const income = transactions.filter(t => t.type === 'إيراد').reduce((s, t) => s + (t.amount || 0), 0);
   const expense = transactions.filter(t => t.type === 'مصروف').reduce((s, t) => s + (t.amount || 0), 0);

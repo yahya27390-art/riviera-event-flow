@@ -66,6 +66,44 @@ function createEntityClient(tableName) {
           delete payload.base_price;
         }
 
+        // Sanitize columns for expenses to prevent Supabase schema errors
+        if (tableName === 'expenses') {
+          if (payload.created_by) {
+            if (!payload.edited_by) payload.edited_by = payload.created_by;
+            delete payload.created_by;
+          }
+          const validCols = new Set([
+            'id', 'expense_number', 'expense_type', 'amount', 'payment_method',
+            'description', 'expense_date', 'edited_by', 'notes', 'created_at', 'created_date'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
+        }
+
+        // Sanitize columns for cash_transactions
+        if (tableName === 'cash_transactions') {
+          const validCols = new Set([
+            'id', 'type', 'source', 'reference_id', 'reference_label',
+            'amount', 'transaction_date', 'description', 'notes', 'created_at', 'created_date'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
+        }
+
+        // Sanitize columns for bank_transactions
+        if (tableName === 'bank_transactions') {
+          const validCols = new Set([
+            'id', 'type', 'source', 'reference_id', 'reference_label',
+            'amount', 'payment_method', 'bank_name', 'transaction_date',
+            'description', 'notes', 'created_at', 'created_date'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
+        }
+
         const { data, error } = await supabase
           .from(tableName)
           .insert([payload])
@@ -87,6 +125,41 @@ function createEntityClient(tableName) {
         if (payload.created_at) delete payload.created_at;
         if (tableName === 'bookings') {
           delete payload.base_price;
+        }
+
+        if (tableName === 'expenses') {
+          if (payload.created_by) {
+            if (!payload.edited_by) payload.edited_by = payload.created_by;
+            delete payload.created_by;
+          }
+          const validCols = new Set([
+            'expense_number', 'expense_type', 'amount', 'payment_method',
+            'description', 'expense_date', 'edited_by', 'notes', 'updated_at'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
+        }
+
+        if (tableName === 'cash_transactions') {
+          const validCols = new Set([
+            'type', 'source', 'reference_id', 'reference_label',
+            'amount', 'transaction_date', 'description', 'notes', 'updated_at'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
+        }
+
+        if (tableName === 'bank_transactions') {
+          const validCols = new Set([
+            'type', 'source', 'reference_id', 'reference_label',
+            'amount', 'payment_method', 'bank_name', 'transaction_date',
+            'description', 'notes', 'updated_at'
+          ]);
+          for (const k of Object.keys(payload)) {
+            if (!validCols.has(k)) delete payload[k];
+          }
         }
 
         const { data, error } = await supabase
