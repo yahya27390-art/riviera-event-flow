@@ -308,11 +308,21 @@ export function buildBookingsPage(hallSettings, bookings, dateFrom, dateTo) {
 // 3. تقرير المصروفات مع الترقيم والتقسيم على صفحات A4
 // ──────────────────────────────────────────────────────────
 export function buildExpensesPage(hallSettings, expenses, dateFrom, dateTo) {
-  const total = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  // ترتيب المصروفات عند الطباعة: من الأقدم في الأعلى إلى الأحدث في الأسفل
+  const sortedExpenses = [...expenses].sort((a, b) => {
+    const da = a.expense_date ? new Date(a.expense_date).getTime() : 0;
+    const db = b.expense_date ? new Date(b.expense_date).getTime() : 0;
+    if (da !== db) return da - db;
+    const ca = new Date(a.created_at || a.created_date || 0).getTime();
+    const cb = new Date(b.created_at || b.created_date || 0).getTime();
+    return ca - cb;
+  });
+
+  const total = sortedExpenses.reduce((s, e) => s + (e.amount || 0), 0);
 
   const FIRST_PAGE_ROWS = 11;
   const SUBSEQUENT_ROWS = 17;
-  const chunked = chunkRows(expenses, FIRST_PAGE_ROWS, SUBSEQUENT_ROWS);
+  const chunked = chunkRows(sortedExpenses, FIRST_PAGE_ROWS, SUBSEQUENT_ROWS);
   const totalPages = chunked.length;
 
   let globalIdx = 1;

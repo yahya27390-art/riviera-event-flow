@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Receipt, Trash2, Pencil } from 'lucide-react';
+import { Plus, Receipt, Trash2, Pencil, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
@@ -21,6 +21,8 @@ import { gregorianToHijri } from '@/lib/hijri';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { openPrintWindow } from '@/lib/printReport';
+import { buildExpensesPage } from '@/components/print/ReportPageBuilder';
 
 const EXPENSE_TYPES = [
   'كهرباء', 'عمالة', 'صيانة', 'رواتب', 'إدارية', 'طارئة', 'بنكية',
@@ -63,6 +65,12 @@ export default function Expenses() {
     queryKey: ['expenses'],
     queryFn: () => base44.entities.Expense.list('-created_date', 500),
   });
+
+  const { data: settingsList = [] } = useQuery({
+    queryKey: ['hallSettings'],
+    queryFn: () => base44.entities.HallSettings.list(),
+  });
+  const hallSettings = settingsList[0] || {};
 
   const create = useMutation({
     mutationFn: async (data) => {
@@ -131,16 +139,50 @@ export default function Expenses() {
 
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredExpenses = expenses.filter(e => {
-    const matchesType = filterType === 'all' || e.expense_type === filterType;
-    const matchesSearch = !searchTerm || 
-      (e.description && e.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (e.expense_number && e.expense_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (e.expense_type && e.expense_type.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      String(e.amount).includes(searchTerm);
-    return matchesType && matchesSearch;
-  });
+  // ترتيب العرض على الشاشة: من الأحدث إلى الأقدم (التاريخ الأحدث في الأعلى)
+  const filteredExpenses = useMemo(() => {
+    return expenses
+      .filter(e => {
+        const matchesType = filterType === 'all' || e.expense_type === filterType;
+        const matchesSearch = !searchTerm || 
+          (e.description && e.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (e.expense_number && e.expense_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (e.expense_type && e.expense_type.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          String(e.amount).includes(searchTerm);
+        return matchesType && matchesSearch;
+      })
+      .sort((a, b) => {
+        const dateA = a.expense_date ? new Date(a.expense_date).getTime() : 0;
+        const dateB = b.expense_date ? new Date(b.expense_date).getTime() : 0;
+        if (dateB !== dateA) return dateB - dateA; // الأحدث تاريخاً في الأعلى
+        const createA = new Date(a.created_at || a.created_date || 0).getTime();
+        const createB = new Date(b.created_at || b.created_date || 0).getTime();
+        return createB - createA;
+      });
+  }, [expenses, filterType, searchTerm]);
+
   const total = filteredExpenses.reduce((s, e) => s + (e.amount || 0), 0);
+
+  // وظيفة الطباعة: الترتيب بالعكس من الأقدم إلى الأحدث (التاريخ القديم فوق والحديث تحت)
+  const handlePrintExpenses = () => {
+    if (filteredExpenses.length === 0) {
+      toast.error('لا توجد مصروفات لطباعتها');
+      return;
+    }
+    const printList = [...filteredExpenses].sort((a, b) => {
+      const dateA = a.expense_date ? new Date(a.expense_date).getTime() : 0;
+      const dateB = b.expense_date ? new Date(b.expense_date).getTime() : 0;
+      if (dateA !== dateB) return dateA - dateB; // الأقدم تاريخاً في الأعلى
+      const createA = new Date(a.created_at || a.created_date || 0).getTime();
+      const createB = new Date(b.created_at || b.created_date || 0).getTime();
+      return createA - createB;
+    });
+
+    const firstDate = printList[0]?.expense_date || '';
+    const lastDate = printList[printList.length - 1]?.expense_date || '';
+    const html = buildExpensesPage(hallSettings, printList, firstDate, lastDate);
+    openPrintWindow(html, 'سجل المصروفات التشغيلية');
+  };
 
   // Summary by type
   const summaryByType = EXPENSE_TYPES.reduce((acc, type) => {
@@ -154,7 +196,26 @@ export default function Expenses() {
       <PageHeader
         title="سجل المصروفات التشغيلية"
         description={`إجمالي المصروفات: ${formatCurrency(expenses.reduce((s, e) => s + (e.amount || 0), 0))} (${expenses.length} سند صرف معتمد)`}
-        actions={<Button onClick={() => { setForm(emptyForm); setEditExpenseId(null); setShowDialog(true); }} className="bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20"><Plus className="w-4 h-4 ml-2" /> تسجيل مصروف جديد</Button>}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handlePrintExpenses}
+              className="bg-card hover:bg-muted text-foreground border-border/80 shadow-sm font-bold"
+              title="طباعة كشف المصروفات (الأقدم في الأعلى والأحدث في الأسفل)"
+            >
+              <Printer className="w-4 h-4 ml-2 text-rose-600 dark:text-rose-400" />
+              طباعة السجل
+            </Button>
+            <Button
+              onClick={() => { setForm(emptyForm); setEditExpenseId(null); setShowDialog(true); }}
+              className="bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20 font-bold"
+            >
+              <Plus className="w-4 h-4 ml-2" />
+              تسجيل مصروف جديد
+            </Button>
+          </div>
+        }
       />
 
       {/* Summary Cards by Type */}
