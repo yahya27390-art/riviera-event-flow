@@ -73,7 +73,7 @@ export default function PendingPayments() {
         await base44.entities.BankTransaction.create({
           type: 'إيراد', source: 'حجز', reference_id: booking.id,
           reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: paymentData.amount, transaction_date: paymentData.payment_date, payment_method: 'تحويل بنكي',
+          amount: paymentData.amount, transaction_date: paymentData.payment_date, payment_method: paymentData.payment_method || 'تحويل بنكي',
         });
       }
     },

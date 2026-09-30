@@ -25,15 +25,16 @@ export default function BookingFormPage() {
       const bookingNumber = generateBookingNumber();
       const created = await base44.entities.Booking.create({ ...data, booking_number: bookingNumber });
       if (data.initial_payment_amount > 0) {
+        const pMethod = data.initial_payment_method || 'نقدي';
         await base44.entities.Payment.create({
           booking_id: created.id,
           booking_number: bookingNumber,
           amount: data.initial_payment_amount,
-          payment_method: data.initial_payment_method === 'تحويل بنكي' ? 'تحويل بنكي' : 'نقدي',
+          payment_method: pMethod,
           payment_date: new Date().toISOString().split('T')[0],
           notes: 'دفعة الحجز الأولى',
         });
-        if (data.initial_payment_method === 'نقدي') {
+        if (pMethod === 'نقدي') {
           await base44.entities.CashTransaction.create({
             type: 'إيراد', source: 'حجز', reference_id: created.id,
             reference_label: `دفعة حجز ${bookingNumber}`,
@@ -46,7 +47,7 @@ export default function BookingFormPage() {
             reference_label: `دفعة حجز ${bookingNumber}`,
             amount: data.initial_payment_amount,
             transaction_date: new Date().toISOString().split('T')[0],
-            payment_method: 'تحويل بنكي',
+            payment_method: pMethod === 'مدى' ? 'مدى' : 'تحويل بنكي',
           });
         }
       }

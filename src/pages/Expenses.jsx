@@ -98,8 +98,12 @@ export default function Expenses() {
   });
 
   const deleteExpense = useMutation({
-    mutationFn: (id) => base44.entities.Expense.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['expenses'] }); setDeleteId(null); toast.success('تم حذف المصروف'); },
+    mutationFn: async (id) => {
+      await base44.entities.Expense.delete(id);
+      await base44.entities.CashTransaction.deleteMany({ reference_id: id, source: 'مصروف' }).catch(() => {});
+      await base44.entities.BankTransaction.deleteMany({ reference_id: id, source: 'مصروف' }).catch(() => {});
+    },
+    onSuccess: () => { queryClient.invalidateQueries(); setDeleteId(null); toast.success('تم حذف المصروف'); },
   });
 
   const updateExpense = useMutation({

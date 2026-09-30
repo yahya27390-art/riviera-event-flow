@@ -253,12 +253,19 @@ export default function CashManagement() {
     }
   });
 
-  // Delete cash transaction (and linked Expense if applicable)
+  // Delete cash transaction (and linked Expense or Bank transfer if applicable)
   const deleteTransaction = useMutation({
     mutationFn: async (id) => {
       const tx = transactions.find(t => t.id === id);
       if (tx?.reference_id && tx.source === 'مصروف') {
         await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
+      }
+      if (tx?.source === 'تحويل') {
+        if (tx.reference_id) {
+          await base44.entities.BankTransaction.deleteMany({ reference_id: tx.reference_id }).catch(() => {});
+        } else {
+          await base44.entities.BankTransaction.deleteMany({ amount: tx.amount, transaction_date: tx.transaction_date, source: 'تحويل' }).catch(() => {});
+        }
       }
       await base44.entities.CashTransaction.delete(id);
     },
@@ -275,28 +282,39 @@ export default function CashManagement() {
       const amount = parseFloat(data.amount);
       const userName = user?.full_name || user?.email || '—';
       const date = data.transaction_date;
+      const transferId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `trf-${Date.now()}`;
       if (direction === 'toBank') {
-        // من الخزينة إلى البنك: الخزينة تنقص (مصروف)، البنك يزيد (إيراد)
+        // من الخزينة إلى البنك: الخزينة تنقص (مصروف)، البنك يزيد (إيراد) تلقائياً وبشكل مباشر
         await base44.entities.CashTransaction.create({
           type: 'مصروف', source: 'تحويل',
+          reference_id: transferId,
           reference_label: `تحويل إلى البنك - بواسطة: ${userName}`,
+          description: 'تحويل نقدي من الخزينة إلى الحساب البنكي',
           amount, transaction_date: date,
         });
         await base44.entities.BankTransaction.create({
           type: 'إيراد', source: 'تحويل',
+          reference_id: transferId,
           reference_label: `تحويل من الخزينة - بواسطة: ${userName}`,
+          description: 'إيداع نقدي محول من الخزينة تلقائياً',
+          payment_method: 'تحويل بنكي',
           amount, transaction_date: date,
         });
       } else {
-        // من البنك إلى الخزينة: البنك ينقص (مصروف)، الخزينة تزيد (إيراد)
+        // من البنك إلى الخزينة: البنك ينقص (مصروف)، الخزينة تزيد (إيراد) تلقائياً وبشكل مباشر
         await base44.entities.BankTransaction.create({
           type: 'مصروف', source: 'تحويل',
+          reference_id: transferId,
           reference_label: `تحويل إلى الخزينة - بواسطة: ${userName}`,
+          description: 'سحب بنكي وتوريد للخزينة',
+          payment_method: 'تحويل بنكي',
           amount, transaction_date: date,
         });
         await base44.entities.CashTransaction.create({
           type: 'إيراد', source: 'تحويل',
+          reference_id: transferId,
           reference_label: `تحويل من البنك - بواسطة: ${userName}`,
+          description: 'إيداع نقدي بالخزينة مسحوب من البنك',
           amount, transaction_date: date,
         });
       }

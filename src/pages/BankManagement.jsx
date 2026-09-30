@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Building2, TrendingUp, TrendingDown, Pencil, Trash2, Receipt } from 'lucide-react';
+import { Plus, Building2, TrendingUp, TrendingDown, Pencil, Trash2, Receipt, ArrowLeftRight, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import PageHeader from '@/components/shared/PageHeader';
 import StatCard from '@/components/shared/StatCard';
@@ -36,6 +36,13 @@ export default function BankManagement() {
     amount: '', 
     reference_label: '', 
     payment_method: 'مدى', 
+    transaction_date: todayGreg, 
+    transaction_date_hijri: gregorianToHijri(todayGreg) 
+  });
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferConfirm, setTransferConfirm] = useState(null);
+  const [transferForm, setTransferForm] = useState({ 
+    amount: '', 
     transaction_date: todayGreg, 
     transaction_date_hijri: gregorianToHijri(todayGreg) 
   });
@@ -155,12 +162,68 @@ export default function BankManagement() {
       if (tx?.reference_id && tx.source === 'مصروف') {
         await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
       }
+      if (tx?.source === 'تحويل') {
+        if (tx.reference_id) {
+          await base44.entities.CashTransaction.deleteMany({ reference_id: tx.reference_id }).catch(() => {});
+        } else {
+          await base44.entities.CashTransaction.deleteMany({ amount: tx.amount, transaction_date: tx.transaction_date, source: 'تحويل' }).catch(() => {});
+        }
+      }
       await base44.entities.BankTransaction.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setDeleteTransactionId(null);
       toast.success('تم الحذف بنجاح');
+    },
+  });
+
+  const transferFunds = useMutation({
+    mutationFn: async ({ direction, data }) => {
+      const amount = parseFloat(data.amount);
+      const userName = user?.full_name || user?.email || '—';
+      const date = data.transaction_date;
+      const transferId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `trf-${Date.now()}`;
+      if (direction === 'toBank') {
+        await base44.entities.CashTransaction.create({
+          type: 'مصروف', source: 'تحويل',
+          reference_id: transferId,
+          reference_label: `تحويل إلى البنك - بواسطة: ${userName}`,
+          description: 'تحويل نقدي من الخزينة إلى الحساب البنكي',
+          amount, transaction_date: date,
+        });
+        await base44.entities.BankTransaction.create({
+          type: 'إيراد', source: 'تحويل',
+          reference_id: transferId,
+          reference_label: `تحويل من الخزينة - بواسطة: ${userName}`,
+          description: 'إيداع نقدي محول من الخزينة تلقائياً',
+          payment_method: 'تحويل بنكي',
+          amount, transaction_date: date,
+        });
+      } else {
+        await base44.entities.BankTransaction.create({
+          type: 'مصروف', source: 'تحويل',
+          reference_id: transferId,
+          reference_label: `تحويل إلى الخزينة - بواسطة: ${userName}`,
+          description: 'سحب بنكي وتوريد للخزينة',
+          payment_method: 'تحويل بنكي',
+          amount, transaction_date: date,
+        });
+        await base44.entities.CashTransaction.create({
+          type: 'إيراد', source: 'تحويل',
+          reference_id: transferId,
+          reference_label: `تحويل من البنك - بواسطة: ${userName}`,
+          description: 'إيداع نقدي بالخزينة مسحوب من البنك',
+          amount, transaction_date: date,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setTransferConfirm(null);
+      setShowTransferDialog(false);
+      setTransferForm({ amount: '', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
+      toast.success('تم تنفيذ التحويل بنجاح وزيادة رصيد الحساب مباشرة');
     },
   });
 
@@ -175,6 +238,9 @@ export default function BankManagement() {
         description="إدارة الحسابات البنكية"
         actions={
           <div className="flex gap-2 flex-wrap">
+            <Button onClick={() => setShowTransferDialog(true)} variant="outline" className="gap-1 border-primary/30 hover:bg-primary/5">
+              <ArrowLeftRight className="w-4 h-4 ml-1" /> تحويل بين الخزينة والبنك
+            </Button>
             <Button onClick={() => {
               setForm({ type: 'مصروف', expense_type: 'تجهيز فرح', amount: '', reference_label: '', payment_method: 'مدى', transaction_date: todayGreg, transaction_date_hijri: gregorianToHijri(todayGreg) });
               setEditTransactionId(null);
@@ -447,6 +513,77 @@ export default function BankManagement() {
             <AlertDialogCancel>إلغاء</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteTransaction.mutate(deleteTransactionId)} className="bg-destructive text-destructive-foreground">
               حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* === Transfer Dialog === */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="w-5 h-5 text-primary" /> تحويل بين الخزينة والبنك
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>قيمة التحويل *</Label>
+              <Input
+                type="number"
+                value={transferForm.amount}
+                onChange={e => setTransferForm(f => ({ ...f, amount: e.target.value }))}
+                required
+                dir="ltr"
+                placeholder="0.00"
+              />
+            </div>
+            <HijriDatePicker
+              label="تاريخ التحويل"
+              value={{ hijri: transferForm.transaction_date_hijri, gregorian: transferForm.transaction_date }}
+              onChange={({ hijri, gregorian }) => setTransferForm(f => ({ ...f, transaction_date: gregorian, transaction_date_hijri: hijri }))}
+            />
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <Button
+                type="button"
+                disabled={!transferForm.amount || transferFunds.isPending}
+                onClick={() => setTransferConfirm('toBank')}
+                className="gap-1 bg-cyan-700 hover:bg-cyan-800 text-white font-bold"
+              >
+                <Building2 className="w-4 h-4" /> إيداع بالبنك
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!transferForm.amount || transferFunds.isPending}
+                onClick={() => setTransferConfirm('toCash')}
+                className="gap-1 font-bold"
+              >
+                <Wallet className="w-4 h-4" /> سحب للخزينة
+              </Button>
+            </div>
+            <Button type="button" variant="outline" className="w-full" onClick={() => setShowTransferDialog(false)}>إلغاء</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* === Transfer Confirmation === */}
+      <AlertDialog open={!!transferConfirm} onOpenChange={() => setTransferConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد التحويل</AlertDialogTitle>
+            <AlertDialogDescription>
+              {transferConfirm === 'toBank'
+                ? `هل أنت متأكد من تحويل ${formatCurrency(parseFloat(transferForm.amount) || 0)} من الخزينة إلى البنك مباشرة؟`
+                : transferConfirm === 'toCash'
+                ? `هل أنت متأكد من تحويل ${formatCurrency(parseFloat(transferForm.amount) || 0)} من البنك إلى الخزينة مباشرة؟`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction onClick={() => transferFunds.mutate({ direction: transferConfirm, data: transferForm })} className="bg-primary text-white font-bold">
+              تأكيد التحويل
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
