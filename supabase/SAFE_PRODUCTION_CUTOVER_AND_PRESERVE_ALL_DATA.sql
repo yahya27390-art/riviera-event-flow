@@ -40,6 +40,10 @@ END $$;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS base_price numeric(12,2);
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS national_id text;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS shift_time text;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS section_id uuid;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS package_id uuid;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS hall_section text DEFAULT 'كامل القاعة (قسمين)';
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS event_date_hijri text;
 ALTER TABLE public.bookings ALTER COLUMN status SET DEFAULT 'مؤكد';
 
 -- 4. جدول منع تكرار العمليات (Idempotency Requests)
@@ -160,15 +164,16 @@ CREATE OR REPLACE FUNCTION public.create_booking_with_deposit(p_request_id uuid,
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog AS $$
 DECLARE
   b public.bookings%ROWTYPE;
-  deposit numeric := coalesce((p_payload->>'initial_payment_amount')::numeric, 0);
+  deposit numeric := coalesce(nullif(p_payload->>'initial_payment_amount','')::numeric, 0);
   deposit_method text := coalesce(p_payload->>'initial_payment_method', 'نقدي');
   event_day text := p_payload->>'event_date';
   total numeric := (p_payload->>'total_amount')::numeric;
   final_val numeric := coalesce((p_payload->>'final_amount')::numeric, total);
-  discount numeric := coalesce((p_payload->>'discount')::numeric, 0);
+  discount numeric := coalesce(nullif(p_payload->>'discount','')::numeric, 0);
+  sec_name text := coalesce(p_payload->>'hall_section', 'كامل القاعة (قسمين)');
   result jsonb;
 BEGIN
-  result := public.accounting_previous(p_request_id, 'create_booking', p_payload);
+  result := public.accounting_previous(p_request_id, 'booking', p_payload);
   IF result IS NOT NULL THEN RETURN result; END IF;
   IF event_day IS NULL OR event_day !~ '^\d{4}-\d{2}-\d{2}$' THEN RAISE EXCEPTION 'تاريخ المناسبة مطلوب'; END IF;
   PERFORM event_day::date;
@@ -176,41 +181,55 @@ BEGIN
   IF deposit < 0 OR deposit > final_val THEN RAISE EXCEPTION 'مبلغ العربون غير صالح'; END IF;
 
   INSERT INTO public.bookings (
-    booking_number, customer_name, customer_phone, national_id, event_date,
-    event_type, section_id, package_id, total_amount, discount, final_amount,
-    paid_amount, remaining_amount, initial_payment_amount, initial_payment_method,
-    status, notes, shift_time, base_price, created_at, updated_at
+    booking_number, customer_id, customer_name, customer_phone, national_id, voucher_number,
+    event_date, event_date_hijri, hall_section, section_id, package_id, event_type,
+    shift_time, service_type, status, items, base_price, total_amount, discount,
+    final_amount, paid_amount, remaining_amount, initial_payment_amount, initial_payment_method, notes
   ) VALUES (
     coalesce(p_payload->>'booking_number', 'BK-' || p_request_id::text),
-    p_payload->>'customer_name', p_payload->>'customer_phone', p_payload->>'national_id',
-    event_day, coalesce(p_payload->>'event_type','أخرى'),
-    NULLIF(p_payload->>'section_id','')::uuid, NULLIF(p_payload->>'package_id','')::uuid,
-    total, discount, final_val, deposit, final_val - deposit, deposit, deposit_method,
-    coalesce(p_payload->>'status', 'مؤكد'), p_payload->>'notes', p_payload->>'shift_time',
-    (p_payload->>'base_price')::numeric, now(), now()
+    nullif(p_payload->>'customer_id','')::uuid,
+    p_payload->>'customer_name',
+    coalesce(p_payload->>'customer_phone',''),
+    p_payload->>'national_id',
+    p_payload->>'voucher_number',
+    event_day,
+    p_payload->>'event_date_hijri',
+    sec_name,
+    nullif(p_payload->>'section_id','')::uuid,
+    nullif(p_payload->>'package_id','')::uuid,
+    coalesce(p_payload->>'event_type','زواج'),
+    p_payload->>'shift_time',
+    coalesce(p_payload->>'service_type','خدمات كاملة'),
+    coalesce(p_payload->>'status','مؤكد'),
+    coalesce(p_payload->'items','[]'::jsonb),
+    nullif(p_payload->>'base_price','')::numeric,
+    total,
+    discount,
+    final_val,
+    0,
+    final_val,
+    deposit,
+    deposit_method,
+    p_payload->>'notes'
   ) RETURNING * INTO b;
 
   IF deposit > 0 THEN
-    INSERT INTO public.payments (
-      booking_id, payment_number, amount, payment_method, payment_date,
-      notes, recipient_name, created_at, edited_by
-    ) VALUES (
-      b.id, 'DEP-' || p_request_id::text, deposit, deposit_method,
-      coalesce(p_payload->>'deposit_date', to_char(now(), 'YYYY-MM-DD')),
-      'عربون حجز جديد', 'النظام', now(), auth.uid()::text
+    result := public.record_booking_payment(
+      gen_random_uuid(),
+      jsonb_build_object(
+        'booking_id', b.id,
+        'amount', deposit,
+        'payment_method', deposit_method,
+        'payment_date', coalesce(p_payload->>'deposit_date', to_char(current_timestamp AT TIME ZONE 'Asia/Riyadh', 'YYYY-MM-DD')),
+        'notes', 'عربون حجز جديد'
+      )
     );
-    IF deposit_method = 'نقدي' THEN
-      INSERT INTO public.cash_transactions (type, source, reference_id, reference_label, amount, transaction_date)
-      VALUES ('إيراد', 'عربون', b.id::text, 'عربون حجز: ' || b.customer_name, deposit, coalesce(p_payload->>'deposit_date', to_char(now(), 'YYYY-MM-DD')));
-    ELSE
-      INSERT INTO public.bank_transactions (type, source, reference_id, reference_label, amount, transaction_date, payment_method)
-      VALUES ('إيراد', 'عربون', b.id::text, 'عربون حجز: ' || b.customer_name, deposit, coalesce(p_payload->>'deposit_date', to_char(now(), 'YYYY-MM-DD')), deposit_method);
-    END IF;
+    SELECT * INTO b FROM public.bookings WHERE id = b.id;
   END IF;
 
   result := to_jsonb(b);
   INSERT INTO public.accounting_requests (id, actor, operation, payload, response, created_at)
-  VALUES (p_request_id, auth.uid(), 'create_booking', p_payload, result, now());
+  VALUES (p_request_id, auth.uid(), 'booking', p_payload, result, now());
   RETURN result;
 END;
 $$;
