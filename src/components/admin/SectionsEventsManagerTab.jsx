@@ -6,11 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Pencil, Trash2, Building, CalendarHeart, RotateCcw, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building, CalendarHeart } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 export default function SectionsEventsManagerTab() {
   const queryClient = useQueryClient();
@@ -99,7 +97,7 @@ export default function SectionsEventsManagerTab() {
 
   return (
     <div className="space-y-6">
-      
+
       {/* 1. Hall Sections Management */}
       <Card className="rounded-3xl border border-border/80 shadow-sm overflow-hidden">
         <CardHeader className="p-5 pb-4 bg-muted/20 border-b border-border/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -118,7 +116,7 @@ export default function SectionsEventsManagerTab() {
             <Plus className="w-4 h-4" /> إضافة قسم جديد
           </Button>
         </CardHeader>
-        
+
         <CardContent className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {sections.map(sec => (
@@ -169,7 +167,7 @@ export default function SectionsEventsManagerTab() {
             <Plus className="w-4 h-4" /> إضافة نوع مناسبة
           </Button>
         </CardHeader>
-        
+
         <CardContent className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {eventTypes.map(ev => (

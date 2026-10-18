@@ -3,8 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { 
   Calendar, Wallet, Building2, Receipt, TrendingUp, TrendingDown, 
-  AlertTriangle, Clock, ArrowLeft, Plus, CreditCard, Sparkles, 
-  Phone, MessageSquare, CheckCircle2, DollarSign, CalendarCheck
+  AlertTriangle, Clock, ArrowLeft, Plus, CreditCard, Sparkles, MessageSquare, CheckCircle2, DollarSign, CalendarCheck
 } from 'lucide-react';
 import { gregorianToHijri } from '@/lib/hijri';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { format, differenceInDays } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import InteractiveCalendar from '@/components/calendar/InteractiveCalendar';
 import { Button } from '@/components/ui/button';
 import QuickExpenseDialog from '@/components/dashboard/QuickExpenseDialog';
@@ -27,14 +26,14 @@ export default function Dashboard() {
   const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: () => base44.entities.Expense.list('-created_at', 500) });
   const { data: settingsList = [] } = useQuery({ queryKey: ['hallSettings'], queryFn: () => base44.entities.HallSettings.list() });
   const hallSettings = settingsList[0] || {};
-  
+
   const [showExpense, setShowExpense] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
 
   // Financial Metrics Calculations
   const cashBalance = cashTxns.reduce((sum, t) => t.type === 'إيراد' ? sum + (Number(t.amount) || 0) : sum - (Number(t.amount) || 0), 0);
   const bankBalance = bankTxns.reduce((sum, t) => t.type === 'إيراد' ? sum + (Number(t.amount) || 0) : sum - (Number(t.amount) || 0), 0);
-  const totalRevenue = [...cashTxns, ...bankTxns].filter(t => t.type === 'إيراد').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const totalRevenue = [...cashTxns, ...bankTxns].filter(t => t.type === 'إيراد' && t.source !== 'تحويل').reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const totalExpenses = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
@@ -42,7 +41,7 @@ export default function Dashboard() {
   today.setHours(0, 0, 0, 0);
 
   const activeBookings = bookings.filter(b => b.status !== 'ملغي');
-  
+
   // Total pending receivables
   const totalRemaining = activeBookings.reduce((sum, b) => sum + (Number(b.remaining_amount) || 0), 0);
 
@@ -64,7 +63,7 @@ export default function Dashboard() {
     const months = {};
     const allTxns = [...cashTxns, ...bankTxns];
     allTxns.forEach(t => {
-      if (t.type === 'إيراد' && (t.transaction_date || t.created_at)) {
+      if (t.type === 'إيراد' && t.source !== 'تحويل' && (t.transaction_date || t.created_at)) {
         const dateStr = (t.transaction_date || t.created_at).substring(0, 7);
         months[dateStr] = (months[dateStr] || 0) + (Number(t.amount) || 0);
       }

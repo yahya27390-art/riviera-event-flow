@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Users, Calendar, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Plus, Calendar, CheckCircle2 } from 'lucide-react';
 import { gregorianToHijri } from '@/lib/hijri';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { getAvailableSections } from './InteractiveCalendar';
 import QuickBookingDialog from '@/components/bookings/QuickBookingDialog';
 import BookingActionCard from './BookingActionCard';
-import { Badge } from '@/components/ui/badge';
 
 export default function DayBookingsDialog({ open, onClose, date, bookings = [] }) {
   const [showQuickBook, setShowQuickBook] = useState(false);

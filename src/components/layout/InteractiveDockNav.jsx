@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/AuthContext';
-import { Badge } from '@/components/ui/badge';
 
 const navItems = [
   { 
@@ -160,10 +159,10 @@ export default function InteractiveDockNav() {
       aria-label="شريط الملاحة التفاعلي"
     >
       <div className="pointer-events-auto relative max-w-4xl w-full flex items-center justify-center">
-        
+
         {/* Dock Main Glass Container */}
         <div className="w-full relative flex items-center bg-card/90 dark:bg-slate-950/90 backdrop-blur-2xl border border-white/40 dark:border-slate-800/80 shadow-[0_12px_45px_rgba(0,0,0,0.22)] rounded-3xl p-1.5 sm:p-2 transition-all duration-300">
-          
+
           {/* Subtle Right Scroll Button (for RTL start) */}
           {canScrollRight && (
             <button

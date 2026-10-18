@@ -2,14 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { SAUDI_BANKS } from '@/lib/systemSettings';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Building2, CreditCard, Plus, Trash2, Pencil, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Building2, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function BankingPaymentManagerTab() {
@@ -65,7 +65,7 @@ export default function BankingPaymentManagerTab() {
   const saveBankAccountsMutation = useMutation({
     mutationFn: async (updatedAccounts) => {
       const primary = updatedAccounts[0] || {};
-      
+
       let notesObj = {};
       try {
         if (hallSettings.notes && hallSettings.notes.startsWith('{')) {
@@ -129,7 +129,7 @@ export default function BankingPaymentManagerTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      
+
       {/* Top Header Card */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5 rounded-3xl bg-card border border-border/80 shadow-sm">
         <div>
@@ -226,7 +226,7 @@ export default function BankingPaymentManagerTab() {
           </DialogHeader>
 
           <form onSubmit={handleSaveAccount} className="space-y-4 pt-2">
-            
+
             <div className="space-y-1.5">
               <Label className="text-xs font-black">اسم البنك *</Label>
               <Select value={bankForm.bank_name} onValueChange={v => setBankForm({ ...bankForm, bank_name: v })}>

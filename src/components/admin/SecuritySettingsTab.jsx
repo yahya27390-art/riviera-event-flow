@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, Lock, Mail, KeyRound, Clock, AlertTriangle, CheckCircle2, ShieldAlert, Sparkles, LogOut } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, KeyRound, CheckCircle2, Sparkles, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SecuritySettingsTab() {
@@ -56,7 +56,7 @@ export default function SecuritySettingsTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      
+
       {/* Security Status Banner */}
       <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-amber-950/40 to-slate-900 border border-amber-500/30 text-foreground flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
         <div className="flex items-center gap-3.5">
@@ -69,7 +69,7 @@ export default function SecuritySettingsTab() {
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">نشط ومحمي 🛡️</span>
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              تشفير SHA-256 عالي الأمان، حظر هجمات التخمين، وقفل تلقائي عند الخمول
+              تسجيل دخول مركزي وكلمة مرور موحدة على الأجهزة وقفل تلقائي عند الخمول
             </p>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function SecuritySettingsTab() {
       </div>
 
       <form onSubmit={handleSaveSecurity} className="space-y-6">
-        
+
         {/* Credentials & Access Control */}
         <Card className="rounded-3xl border border-border/80 shadow-sm overflow-hidden">
           <CardHeader className="p-5 pb-4 bg-muted/20 border-b border-border/50">
@@ -113,7 +113,7 @@ export default function SecuritySettingsTab() {
           </CardHeader>
 
           <CardContent className="p-5 space-y-4">
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Owner Email */}
               <div className="space-y-1.5">
@@ -153,7 +153,7 @@ export default function SecuritySettingsTab() {
 
             <div className="pt-3 border-t border-border/50">
               <h4 className="text-xs font-black text-foreground mb-3">تعديل رمز المرور السري (اتركه فارغاً إذا كنت لا ترغب بتغييره):</h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-foreground">رمز المرور السري الجديد (PIN / Passcode)</Label>
@@ -162,7 +162,7 @@ export default function SecuritySettingsTab() {
                     inputMode="numeric"
                     value={newPasscode}
                     onChange={(e) => setNewPasscode(e.target.value)}
-                    placeholder="أدخل رمز جديد (مثال: 7799 أو أكثر)"
+                    placeholder="كلمة مرور جديدة من 8 أحرف على الأقل"
                     className="h-11 text-center font-bold tracking-widest rounded-2xl bg-card border-border/80"
                   />
                 </div>
@@ -209,7 +209,7 @@ export default function SecuritySettingsTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
             <div className="p-3 rounded-2xl bg-card border border-border/70 space-y-1">
               <div className="font-bold text-emerald-500 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> تشفير الهاش المملح (Salted SHA-256)
+                <CheckCircle2 className="w-3.5 h-3.5" /> التحقق من كلمة المرور على الخادم
               </div>
               <p className="text-[11px] text-muted-foreground">لا يتم حفظ أي رموز أو كلمات مرور كنصوص مكشوفة إطلاقاً.</p>
             </div>

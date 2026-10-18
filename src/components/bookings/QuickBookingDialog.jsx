@@ -1,11 +1,12 @@
+import { createBookingWithDeposit } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Zap, User, Phone, Sparkles, Crown, Check, Calendar } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { generateBookingNumber } from '@/lib/utils/bookingNumber';
 import { gregorianToHijri } from '@/lib/hijri';
 import HijriDatePicker from '@/components/shared/HijriDatePicker';
@@ -18,6 +19,7 @@ const pricePresets = [8000, 10000, 12000, 15000];
 
 export default function QuickBookingDialog({ open, onClose, presetDate, presetHijri, availableSections: propSections }) {
   const queryClient = useQueryClient();
+  const bookingNumber = React.useRef(generateBookingNumber());
 
   const { data: settingsList = [] } = useQuery({
     queryKey: ['hallSettings'],
@@ -83,93 +85,16 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
   const updateField = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
   const createBooking = useMutation({
-    mutationFn: async (data) => {
-      const bookingNumber = generateBookingNumber();
-      const basePrice = parseFloat(data.base_price) || 0;
-      const initialPaid = parseFloat(data.initial_payment_amount) || 0;
-
-      // Note: 'base_price' is removed because it is not a column in the Supabase 'bookings' table
-      const created = await base44.entities.Booking.create({
-        customer_name: data.customer_name.trim(),
-        customer_phone: data.customer_phone.trim(),
-        booking_number: bookingNumber,
-        event_date: data.event_date,
-        event_date_hijri: data.event_date_hijri || gregorianToHijri(data.event_date),
-        hall_section: data.hall_section || 'كامل القاعة (قسمين)',
-        event_type: 'زواج',
-        service_type: 'خدمات كاملة',
-        status: 'معلق',
-        items: [],
-        discount: 0,
-        total_amount: basePrice,
-        final_amount: basePrice,
-        paid_amount: initialPaid,
-        remaining_amount: Math.max(0, basePrice - initialPaid),
-        initial_payment_amount: initialPaid,
-        initial_payment_method: data.initial_payment_method || 'نقدي',
-        notes: data.notes || '',
-      });
-
-      // Auto-create customer record if new
-      try {
-        const cleanPhone = (data.customer_phone || '').trim();
-        const existingCust = customers.find(c => (c.phone || '').replace(/\D/g, '') === cleanPhone.replace(/\D/g, ''));
-        if (!existingCust && cleanPhone) {
-          await base44.entities.Customer.create({
-            name: data.customer_name.trim(),
-            phone: cleanPhone,
-            notes: 'عميل حجز سريع',
-          });
-        }
-      } catch (custErr) {
-        console.warn('Customer auto-create skipped:', custErr);
-      }
-
-      // Record payment and transactions if deposit provided
-      if (initialPaid > 0) {
-        try {
-          await base44.entities.Payment.create({
-            booking_id: created.id,
-            booking_number: bookingNumber,
-            customer_name: data.customer_name.trim(),
-            customer_phone: data.customer_phone.trim(),
-            amount: initialPaid,
-            payment_method: data.initial_payment_method || 'نقدي',
-            payment_date: new Date().toISOString().split('T')[0],
-            notes: 'عربون حجز سريع',
-          });
-
-          const txType = data.initial_payment_method === 'نقدي' ? 'cash' : 'bank';
-          if (txType === 'cash') {
-            await base44.entities.CashTransaction.create({
-              type: 'إيراد',
-              source: 'حجز',
-              reference_id: created.id,
-              reference_label: `عربون حجز ${bookingNumber}`,
-              amount: initialPaid,
-              transaction_date: new Date().toISOString().split('T')[0],
-            });
-          } else {
-            await base44.entities.BankTransaction.create({
-              type: 'إيراد',
-              source: 'حجز',
-              reference_id: created.id,
-              reference_label: `عربون حجز ${bookingNumber}`,
-              amount: initialPaid,
-              transaction_date: new Date().toISOString().split('T')[0],
-              payment_method: data.initial_payment_method || 'تحويل بنكي',
-            });
-          }
-        } catch (payErr) {
-          console.error('Payment record error:', payErr);
-        }
-      }
-      return created;
-    },
+    mutationFn: data => createBookingWithDeposit({ ...data,
+      customer_name: data.customer_name.trim(), customer_phone: data.customer_phone.trim(),
+      booking_number: bookingNumber.current, event_type: 'زواج', status: 'معلق', auto_create_customer: true,
+      items: [], discount: 0, total_amount: Number(data.base_price),
+      final_amount: Number(data.base_price), initial_payment_amount: Number(data.initial_payment_amount || 0) }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('تم تسجيل وتثبيت الحجز بنجاح');
       onClose();
+      bookingNumber.current = generateBookingNumber();
     },
     onError: (err) => {
       console.error('Error creating booking:', err);
@@ -189,7 +114,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
-        
+
         {/* iOS Luxury Modal Header */}
         <div className="p-5 pb-4 bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white border-b border-emerald-800/40">
           <div className="flex items-center justify-between">
@@ -209,7 +134,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-          
+
           {/* Customer Name */}
           <div className="space-y-1.5">
             <Label className="text-xs font-black text-foreground">اسم العميل *</Label>

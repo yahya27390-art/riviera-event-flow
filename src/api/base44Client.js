@@ -1,3 +1,5 @@
+import { readAll } from './readAll';
+import { updateBookingSafely } from './accountingOperations';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -6,33 +8,11 @@ import { supabase } from '@/lib/supabase';
  */
 function createEntityClient(tableName) {
   return {
-    async list(sort = '-created_at', limit = 1000) {
-      try {
-        let query = supabase.from(tableName).select('*');
-        
-        if (sort && typeof sort === 'string') {
-          const isDesc = sort.startsWith('-');
-          let col = isDesc ? sort.substring(1) : sort;
-          if (col === 'created_date') col = 'created_at';
-          query = query.order(col, { ascending: !isDesc });
-        } else {
-          query = query.order('created_at', { ascending: false });
-        }
-
-        if (limit && typeof limit === 'number') {
-          query = query.limit(limit);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-          console.warn(`Supabase query warning for table '${tableName}':`, error.message);
-          return [];
-        }
-        return data || [];
-      } catch (err) {
-        console.error(`Error listing from ${tableName}:`, err);
-        return [];
-      }
+    async list(sort = '-created_at') {
+      const descending = sort.startsWith('-');
+      let column = descending ? sort.slice(1) : sort;
+      if (column === 'created_date') column = 'created_at';
+      return readAll(supabase, tableName, { sort: column, ascending: !descending });
     },
 
     async get(id) {
@@ -51,20 +31,21 @@ function createEntityClient(tableName) {
     },
 
     async create(record) {
+      if (['bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
+        throw new Error('يجب تسجيل العملية المالية من المسار الموحد لضمان اكتمال جميع القيود');
+      }
       try {
         const payload = { ...record };
         if (!payload.created_at) payload.created_at = new Date().toISOString();
         if (!payload.created_date) payload.created_date = new Date().toISOString();
-        
+
         // Remove empty ID so Postgres generates default UUID
         if (!payload.id) {
           delete payload.id;
         }
 
         // Remove virtual or non-existent columns from bookings table
-        if (tableName === 'bookings') {
-          delete payload.base_price;
-        }
+
 
         // Sanitize columns for expenses to prevent Supabase schema errors
         if (tableName === 'expenses') {
@@ -119,6 +100,10 @@ function createEntityClient(tableName) {
     },
 
     async update(id, updates) {
+      if (['payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
+        throw new Error('السجلات المالية محفوظة ولا تقبل التعديل المباشر');
+      }
+      if (tableName === 'bookings') return updateBookingSafely(id, updates);
       try {
         const payload = { ...updates };
         delete payload.id;
@@ -178,6 +163,9 @@ function createEntityClient(tableName) {
     },
 
     async delete(id) {
+      if (['bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
+        throw new Error('لا يمكن حذف الحجوزات أو السجلات المالية؛ استخدم إلغاء الحجز مع الاحتفاظ بسنداته');
+      }
       try {
         const { error } = await supabase
           .from(tableName)
@@ -193,6 +181,10 @@ function createEntityClient(tableName) {
     },
 
     async deleteMany(filter = {}) {
+      if (['bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
+        throw new Error('حذف السجلات المالية محظور لحماية الأرصدة');
+      }
+      if (!Object.keys(filter).length) throw new Error('يلزم تحديد السجلات');
       try {
         let query = supabase.from(tableName).delete();
         for (const [key, val] of Object.entries(filter)) {
@@ -208,18 +200,7 @@ function createEntityClient(tableName) {
     },
 
     async filter(criteria = {}) {
-      try {
-        let query = supabase.from(tableName).select('*');
-        for (const [key, val] of Object.entries(criteria)) {
-          query = query.eq(key, val);
-        }
-        const { data, error } = await query;
-        if (error) throw error;
-        return data || [];
-      } catch (err) {
-        console.error(`Error in filter for ${tableName}:`, err);
-        return [];
-      }
+      return readAll(supabase, tableName, { criteria });
     }
   };
 }
@@ -237,29 +218,16 @@ export const base44 = {
   },
   auth: {
     async me() {
-      const savedUser = localStorage.getItem('qemat_alreef_user');
-      if (savedUser) {
-        try {
-          return JSON.parse(savedUser);
-        } catch {
-          // ignore
-        }
-      }
-      return {
-        id: 'admin-1',
-        full_name: 'مدير النظام',
-        email: 'admin@qemat-alreef.com',
-        role: 'admin'
-      };
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!user) throw new Error('يلزم تسجيل الدخول');
+      return { id: user.id, email: user.email, full_name: user.user_metadata?.full_name,
+        role: user.app_metadata?.role || 'accountant' };
     },
-    logout(redirectUrl) {
-      localStorage.removeItem('qemat_alreef_user');
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-      }
+    async logout(redirectUrl) {
+      await supabase.auth.signOut();
+      if (redirectUrl) window.location.href = redirectUrl;
     },
-    redirectToLogin() {
-      // Local fallback
-    }
+    redirectToLogin() { window.location.href = '/'; }
   }
 };

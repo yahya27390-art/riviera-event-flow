@@ -1,3 +1,4 @@
+throw new Error('Disabled: historical financial records must never be cleaned or deleted automatically.');
 const { createClient } = require('@supabase/supabase-js');
 const url = 'https://ylrgnvlyzouhbvtznnam.supabase.co';
 const key = 'sb_publishable_umEgTYRaS4SxQPo_25SFlA_nX20LWYD';

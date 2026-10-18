@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { KeyRound, ShieldCheck, Lock, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ChangePasswordModal({ open, onOpenChange }) {
@@ -45,8 +45,8 @@ export default function ChangePasswordModal({ open, onOpenChange }) {
       return;
     }
 
-    if (newPasscode.trim().length < 4) {
-      setError('رمز المرور الجديد يجب أن يتكون من 4 أرقام/أحرف على الأقل');
+    if (newPasscode.trim().length < 8) {
+      setError('رمز المرور الجديد يجب أن يتكون من 8 أحرف/أحرف على الأقل');
       return;
     }
 
@@ -114,7 +114,7 @@ export default function ChangePasswordModal({ open, onOpenChange }) {
 
           {/* New Passcode */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-foreground">رمز المرور الجديد (4 أرقام أو أكثر) *</Label>
+            <Label className="text-xs font-bold text-foreground">رمز المرور الجديد (8 أحرف أو أكثر) *</Label>
             <div className="relative">
               <Input
                 type={showNew ? 'text' : 'password'}

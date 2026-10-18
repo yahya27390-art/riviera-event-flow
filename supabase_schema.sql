@@ -223,19 +223,8 @@ ALTER TABLE public.bank_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- Allow full read and write access for authenticated & anon client with valid api key
-DO $$
-DECLARE
-    tbl text;
-BEGIN
-    FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN (
-        'customers', 'hall_settings', 'bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses', 'users'
-    )
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Enable all access for app operations" ON public.%I', tbl);
-        EXECUTE format('CREATE POLICY "Enable all access for app operations" ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl);
-    END LOOP;
-END $$;
+-- Default deny: no anonymous or permissive policies.
+-- Complete Auth provisioning and run the reviewed migrations in supabase/migrations.
 
 -- ==============================================================================
 -- SCHEMA CREATION COMPLETED SUCCESSFULLY ✓

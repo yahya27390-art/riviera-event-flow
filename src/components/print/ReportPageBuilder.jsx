@@ -7,7 +7,7 @@
  * - Automatic Multi-page Pagination with sequential page numbering (صفحة 1 من 2، صفحة 2 من 2)
  * - Primary Hijri calendar throughout (التقويم الهجري أساسي والميلادي ثانوي)
  */
-import { fc, fd, fdh } from '@/lib/printReport';
+import { fc, fd } from '@/lib/printReport';
 import { getHallLogoUrl, cleanCustomerNotes, DEFAULT_HALL_NAME } from '@/lib/branding';
 import moment from 'moment-hijri';
 

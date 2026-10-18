@@ -1,10 +1,12 @@
+import { recordLedgerOperation } from '@/api/accountingOperations';
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -102,39 +104,11 @@ export default function CashManagement() {
 
   // Create manual cash transaction (Auto-sync with Expense entity if type is مصروف)
   const createManual = useMutation({
-    mutationFn: async (data) => {
-      const amount = parseFloat(data.amount);
-      if (data.type === 'مصروف') {
-        // 1. Create official Expense record
-        const expense = await base44.entities.Expense.create({
-          expense_type: data.expense_type || 'أخرى',
-          amount,
-          payment_method: 'نقدي',
-          description: data.reference_label || '',
-          expense_date: data.transaction_date,
-          edited_by: user?.full_name || user?.email || '—',
-        });
-
-        // 2. Create CashTransaction linked to the Expense
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف',
-          source: 'مصروف',
-          reference_id: expense.id,
-          reference_label: `${data.expense_type || 'مصروف'}${data.reference_label ? ' - ' + data.reference_label : ''}`,
-          amount,
-          transaction_date: data.transaction_date,
-        });
-      } else {
-        // Regular Cash Income
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد',
-          source: 'يدوي',
-          reference_label: data.reference_label || 'إيراد نقدي يدوي',
-          amount,
-          transaction_date: data.transaction_date,
-        });
-      }
-    },
+    mutationFn: data => recordLedgerOperation({
+      kind: data.type === 'مصروف' ? 'expense' : 'income', account: 'cash',
+      amount: Number(data.amount), transaction_date: data.transaction_date,
+      payment_method: data.payment_method || 'نقدي',
+      expense_type: data.expense_type || 'أخرى', description: data.reference_label || '' }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setDialogMode(null);
@@ -148,44 +122,11 @@ export default function CashManagement() {
 
   // Create booking payment + update booking + create cash transaction
   const createBookingPayment = useMutation({
-    mutationFn: async (data) => {
-      const { booking, paymentAmount, payDate, payDateHijri, refNum, notes } = data;
-      const amount = parseFloat(paymentAmount);
-
-      // 1. Create Payment record
-      const payment = await base44.entities.Payment.create({
-        booking_id: booking.id,
-        booking_number: booking.booking_number,
-        amount,
-        payment_method: 'نقدي',
-        reference_number: refNum || '',
-        payment_date: payDate,
-        notes: notes || '',
-      });
-
-      // 2. Update booking balances
-      const newPaid = (booking.paid_amount || 0) + amount;
-      const newRemaining = (booking.final_amount || 0) - newPaid;
-      await base44.entities.Booking.update(booking.id, {
-        paid_amount: newPaid,
-        remaining_amount: newRemaining < 0 ? 0 : newRemaining,
-        status: newRemaining <= 0 ? 'مؤكد' : booking.status,
-      });
-
-      // 3. Create CashTransaction
-      await base44.entities.CashTransaction.create({
-        type: 'إيراد',
-        source: 'حجز',
-        reference_id: booking.id,
-        reference_label: `سداد حجز - ${booking.customer_name} - ${booking.booking_number}`,
-        amount,
-        transaction_date: payDate,
-      });
-
-      return {
-        payment: { ...payment, payment_date: payDate, payment_date_hijri: payDateHijri, payment_method: 'نقدي', reference_number: refNum, notes, amount },
-        booking: { ...booking, paid_amount: newPaid, remaining_amount: newRemaining < 0 ? 0 : newRemaining },
-      };
+    mutationFn: async ({ booking, paymentAmount, payDate, payDateHijri, refNum, notes }) => {
+      const result = await recordBookingPayment({ booking_id: booking.id,
+        amount: Number(paymentAmount), payment_method: 'نقدي', payment_date: payDate,
+        reference_number: refNum || '', notes: notes || '' });
+      return { booking: result.booking, payment: { ...result.payment, payment_date_hijri: payDateHijri } };
     },
     onSuccess: ({ payment, booking }) => {
       queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
@@ -200,46 +141,7 @@ export default function CashManagement() {
 
   // Update manual cash transaction (and linked Expense if applicable)
   const updateManual = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const amount = parseFloat(data.amount);
-      const currentTx = transactions.find(t => t.id === id);
-
-      // 1. Update the cash transaction
-      await base44.entities.CashTransaction.update(id, {
-        type: data.type,
-        reference_label: data.reference_label,
-        amount,
-        transaction_date: data.transaction_date,
-      });
-
-      // 2. If it is an Expense, update or create/delete the Expense
-      if (data.type === 'مصروف') {
-        if (currentTx?.reference_id && (currentTx.source === 'مصروف' || currentTx.type === 'مصروف')) {
-          await base44.entities.Expense.update(currentTx.reference_id, {
-            expense_type: data.expense_type || 'أخرى',
-            amount,
-            payment_method: 'نقدي',
-            description: data.reference_label || '',
-            expense_date: data.transaction_date,
-            edited_by: user?.full_name || user?.email || '—',
-          }).catch(() => {});
-        } else {
-          // If it wasn't linked before, create the Expense now and link it
-          const exp = await base44.entities.Expense.create({
-            expense_type: data.expense_type || 'أخرى',
-            amount,
-            payment_method: 'نقدي',
-            description: data.reference_label || '',
-            expense_date: data.transaction_date,
-            edited_by: user?.full_name || user?.email || '—',
-          });
-          await base44.entities.CashTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
-        }
-      } else if (currentTx?.reference_id && currentTx.source === 'مصروف') {
-        // Changed from expense to income, delete the old expense
-        await base44.entities.Expense.delete(currentTx.reference_id).catch(() => {});
-      }
-    },
+    mutationFn: async () => { throw new Error('تعديل الحركات المالية محظور للحفاظ على الأرصدة والسندات'); },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setDialogMode(null);
@@ -255,20 +157,7 @@ export default function CashManagement() {
 
   // Delete cash transaction (and linked Expense or Bank transfer if applicable)
   const deleteTransaction = useMutation({
-    mutationFn: async (id) => {
-      const tx = transactions.find(t => t.id === id);
-      if (tx?.reference_id && tx.source === 'مصروف') {
-        await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
-      }
-      if (tx?.source === 'تحويل') {
-        if (tx.reference_id) {
-          await base44.entities.BankTransaction.deleteMany({ reference_id: tx.reference_id }).catch(() => {});
-        } else {
-          await base44.entities.BankTransaction.deleteMany({ amount: tx.amount, transaction_date: tx.transaction_date, source: 'تحويل' }).catch(() => {});
-        }
-      }
-      await base44.entities.CashTransaction.delete(id);
-    },
+    mutationFn: async () => { throw new Error('حذف الحركات المالية محظور للحفاظ على الأرصدة والسندات'); },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setDeleteTransactionId(null);
@@ -278,47 +167,8 @@ export default function CashManagement() {
 
   // Transfer between cash and bank
   const transferFunds = useMutation({
-    mutationFn: async ({ direction, data }) => {
-      const amount = parseFloat(data.amount);
-      const userName = user?.full_name || user?.email || '—';
-      const date = data.transaction_date;
-      const transferId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `trf-${Date.now()}`;
-      if (direction === 'toBank') {
-        // من الخزينة إلى البنك: الخزينة تنقص (مصروف)، البنك يزيد (إيراد) تلقائياً وبشكل مباشر
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل إلى البنك - بواسطة: ${userName}`,
-          description: 'تحويل نقدي من الخزينة إلى الحساب البنكي',
-          amount, transaction_date: date,
-        });
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل من الخزينة - بواسطة: ${userName}`,
-          description: 'إيداع نقدي محول من الخزينة تلقائياً',
-          payment_method: 'تحويل بنكي',
-          amount, transaction_date: date,
-        });
-      } else {
-        // من البنك إلى الخزينة: البنك ينقص (مصروف)، الخزينة تزيد (إيراد) تلقائياً وبشكل مباشر
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل إلى الخزينة - بواسطة: ${userName}`,
-          description: 'سحب بنكي وتوريد للخزينة',
-          payment_method: 'تحويل بنكي',
-          amount, transaction_date: date,
-        });
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل من البنك - بواسطة: ${userName}`,
-          description: 'إيداع نقدي بالخزينة مسحوب من البنك',
-          amount, transaction_date: date,
-        });
-      }
-    },
+    mutationFn: ({ direction, data }) => recordLedgerOperation({ kind: 'transfer',
+      account: 'cash', direction, amount: Number(data.amount), transaction_date: data.transaction_date }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setTransferConfirm(null);
@@ -457,11 +307,11 @@ export default function CashManagement() {
                     <TableCell className="font-medium text-sm">{formatCurrency(t.amount)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog('edit', t)}>
+                        <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog('edit', t)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                         {isAdmin && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTransactionId(t.id)}>
+                          <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTransactionId(t.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -573,7 +423,7 @@ export default function CashManagement() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-black text-foreground">{form.type === 'مصروف' ? 'بيان وتفاصيل المصروف' : 'الوصف والملاحظات'}</Label>
-              <Input 
+              <Input
                 value={form.reference_label} 
                 onChange={e => setForm({ ...form, reference_label: e.target.value })} 
                 placeholder={form.type === 'مصروف' ? 'مثال: فاتورة صيانة تكييف، شراء بخور، دفعة عمالة...' : 'تفاصيل الإيراد...'}
@@ -589,7 +439,7 @@ export default function CashManagement() {
 
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogMode(null)} className="rounded-xl">إلغاء</Button>
-              <Button 
+              <Button
                 type="submit" 
                 disabled={createManual.isPending || updateManual.isPending}
                 className={cn(

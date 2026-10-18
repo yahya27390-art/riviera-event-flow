@@ -1,10 +1,13 @@
 name: Deploy Riviera Event Flow to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      accounting_cutover_ready:
+        description: Auth, database migrations, backup and unchanged baseline have been verified
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -17,6 +20,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ inputs.accounting_cutover_ready == true }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository

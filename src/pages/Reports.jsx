@@ -1,10 +1,9 @@
+import { financialSummary } from '@/lib/accounting';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -78,10 +77,8 @@ export default function Reports() {
     return { total: days.length, busy: busy.length, free: days.length - busy.length, rate: days.length > 0 ? ((busy.length / days.length) * 100).toFixed(1) : 0, bookedList: booked };
   }, [filteredBookings, dateFrom, dateTo]);
 
-  const cashBalance = cashTxns.reduce((s, t) => t.type === 'إيراد' ? s + (t.amount || 0) : s - (t.amount || 0), 0);
-  const bankBalance = bankTxns.reduce((s, t) => t.type === 'إيراد' ? s + (t.amount || 0) : s - (t.amount || 0), 0);
-  const totalRevenue = [...cashTxns, ...bankTxns].filter(t => t.type === 'إيراد').reduce((s, t) => s + (t.amount || 0), 0);
-  const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const { cashBalance, bankBalance, totalRevenue, totalExpenses } =
+    financialSummary(cashTxns, bankTxns, expenses, dateFrom, dateTo);
 
   const handlePrint = () => {
     let html = '';
@@ -125,7 +122,7 @@ export default function Reports() {
           value={{ hijri: dateToHijri, gregorian: dateTo }}
           onChange={({ hijri, gregorian }) => { setDateTo(gregorian); setDateToHijri(hijri); }}
         />
-        
+
         {/* Quick Date Range Presets */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <Button 

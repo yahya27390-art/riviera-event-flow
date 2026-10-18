@@ -1,6 +1,6 @@
+import { recordLedgerOperation } from '@/api/accountingOperations';
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,22 +26,10 @@ export default function QuickExpenseDialog({ open, onClose }) {
   });
 
   const create = useMutation({
-    mutationFn: async (data) => {
-      const expense = await base44.entities.Expense.create({ ...data, amount: parseFloat(data.amount) });
-      if (data.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
-          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
-          amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
-          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
-          amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      }
-    },
+    mutationFn: data => recordLedgerOperation({ kind: 'expense',
+      account: data.payment_method === 'نقدي' ? 'cash' : 'bank', amount: Number(data.amount),
+      payment_method: data.payment_method === 'بنك' ? 'تحويل بنكي' : data.payment_method,
+      expense_type: data.expense_type, description: data.description || '', transaction_date: data.expense_date }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('تم تسجيل المصروف');

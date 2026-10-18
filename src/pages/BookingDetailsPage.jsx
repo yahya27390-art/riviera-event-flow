@@ -1,3 +1,4 @@
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,28 +27,7 @@ export default function BookingDetailsPage() {
   const bookingPayments = payments.filter(p => p.booking_id === id);
 
   const createPayment = useMutation({
-    mutationFn: async (paymentData) => {
-      await base44.entities.Payment.create(paymentData);
-      const newPaid = (selectedBooking.paid_amount || 0) + paymentData.amount;
-      await base44.entities.Booking.update(selectedBooking.id, {
-        paid_amount: newPaid,
-        remaining_amount: (selectedBooking.final_amount || 0) - newPaid,
-      });
-      if (paymentData.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: selectedBooking.id,
-          reference_label: `دفعة حجز ${selectedBooking.booking_number}`,
-          amount: paymentData.amount, transaction_date: paymentData.payment_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: selectedBooking.id,
-          reference_label: `دفعة حجز ${selectedBooking.booking_number}`,
-          amount: paymentData.amount, transaction_date: paymentData.payment_date,
-          payment_method: paymentData.payment_method === 'مدى' ? 'مدى' : 'تحويل بنكي',
-        });
-      }
-    },
+    mutationFn: paymentData => recordBookingPayment(paymentData),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setPaymentBooking(null);

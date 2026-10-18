@@ -1,6 +1,5 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { getHallLogoUrl, DEFAULT_HALL_NAME, DEFAULT_CITY, DEFAULT_ADDRESS } from '@/lib/branding';
 import { gregorianToHijri } from '@/lib/hijri';

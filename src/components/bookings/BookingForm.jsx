@@ -1,3 +1,4 @@
+import { bookingBasePrice, money } from '@/lib/accounting';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -11,12 +12,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { 
   Plus, Trash2, Save, CreditCard, AlertTriangle, Sparkles, User, Calendar, 
   DollarSign, Package, Coffee, Utensils, Crown, Flame, Music, Gift, 
-  Check, CheckCircle2, ChevronDown, Percent, Wallet, Building2, Building, CalendarHeart
+  Check
 } from 'lucide-react';
 import HijriDatePicker from '@/components/shared/HijriDatePicker';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils/bookingNumber';
 
 const iconMap = {
   Coffee: Coffee,
@@ -42,7 +42,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
   const availableSections = hallSettings.custom_sections || DEFAULT_SECTIONS;
   const availableEventTypes = hallSettings.custom_event_types || DEFAULT_EVENT_TYPES;
 
-  const [form, setForm] = useState(booking || {
+  const [form, setForm] = useState(booking ? { ...booking, base_price: bookingBasePrice(booking) } : {
     customer_name: '',
     customer_phone: '',
     national_id: '',
@@ -121,8 +121,8 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
     updateField('discount', amount);
   };
 
-  const totalAmount = (parseFloat(form.base_price) || 0) + (form.items || []).reduce((sum, item) => sum + (item.total || 0), 0);
-  const finalAmount = Math.max(0, totalAmount - (parseFloat(form.discount) || 0));
+  const totalAmount = money((parseFloat(form.base_price) || 0) + (form.items || []).reduce((sum, item) => sum + Number(item.total || 0), 0));
+  const finalAmount = money(Math.max(0, totalAmount - (parseFloat(form.discount) || 0)));
   const initialPaid = parseFloat(form.initial_payment_amount) || 0;
 
   // Existing paid vs new initial payment
@@ -160,7 +160,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 pb-12">
-      
+
       {/* 1. iOS Card: Customer Information (Saudi Identity) */}
       <Card className="glass-card border-border/80 shadow-md rounded-3xl overflow-hidden">
         <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
@@ -177,13 +177,13 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
           </CardTitle>
           <CardDescription className="text-xs">تسجيل الاسم ورقم الجوال السعودي والسند الدفتري</CardDescription>
         </CardHeader>
-        
+
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-5">
-          
+
           {/* Full Name */}
           <div className="space-y-1.5">
             <Label className="font-black text-xs text-foreground">اسم العميل الثلاثي *</Label>
-            <Input 
+            <Input
               value={form.customer_name} 
               onChange={e => updateField('customer_name', e.target.value)} 
               placeholder="مثال: فيصل بن عبدالعزيز المقرن"
@@ -237,9 +237,9 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
           </CardTitle>
           <CardDescription className="text-xs">تحديد تاريخ أم القرى والقسم المحجوز وفترة الحجز</CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-5 pt-5">
-          
+
           {/* Hijri Date Picker */}
           <HijriDatePicker
             label="تاريخ المناسبة (تقويم أم القرى) *"
@@ -401,9 +401,9 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
             </Button>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-5 pt-5">
-          
+
           {/* Base Hall Rental Price Card with Steppers & Quick Chips */}
           <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-emerald-500/10 border border-amber-500/25 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -531,7 +531,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
           {(form.items || []).length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border/60">
               <Label className="font-black text-xs text-foreground">تفاصيل الباقات والخدمات المضافة ({form.items.length}):</Label>
-              
+
               {form.items.map((item, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-2xl bg-muted/30 border border-border/70">
                   <div className="col-span-12 sm:col-span-5 space-y-1">
@@ -595,7 +595,7 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
           </CardTitle>
           <CardDescription className="text-xs">الملخص المالي وتطبيق الخصم المعتمد</CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-4 pt-5">
           <div className="p-4 rounded-2xl bg-card border border-border/80 space-y-3">
             <div className="flex justify-between items-center text-xs sm:text-sm text-muted-foreground">
@@ -643,12 +643,12 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
           </CardTitle>
           <CardDescription className="text-xs">تسجيل ما تم استلامه من العميل الآن لإنشاء السند المحاسبي فوراً</CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-4 pt-5">
           {!booking?.id ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
+
                 {/* Deposit Amount */}
                 <div className="space-y-1.5">
                   <Label className="font-black text-xs text-foreground">المبلغ المستلم الآن (العربون)</Label>

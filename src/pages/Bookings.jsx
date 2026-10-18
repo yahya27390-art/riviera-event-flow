@@ -1,3 +1,4 @@
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -9,10 +10,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Plus, Search, CreditCard, Eye, Pencil, Trash2, 
-  MessageSquare, Calendar, Filter, FileText, CheckCircle2, 
-  Clock, AlertCircle, Sparkles
+  MessageSquare, Calendar, CheckCircle2,
+  Clock, AlertCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
 import PageHeader from '@/components/shared/PageHeader';
 import EmptyState from '@/components/shared/EmptyState';
 import PaymentDialog from '@/components/bookings/PaymentDialog';
@@ -21,7 +21,6 @@ import { gregorianToHijri } from '@/lib/hijri';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/lib/AuthContext';
-import SecureConfirmButton from '@/components/shared/SecureConfirmButton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Bookings() {
@@ -31,7 +30,7 @@ export default function Bookings() {
   const [sectionFilter, setSectionFilter] = useState('all');
   const [deleteBookingObj, setDeleteBookingObj] = useState(null);
   const [paymentBooking, setPaymentBooking] = useState(null);
-  
+
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -48,12 +47,7 @@ export default function Bookings() {
   const hallSettings = settingsList[0] || {};
 
   const deleteBooking = useMutation({
-    mutationFn: async (booking) => {
-      await base44.entities.CashTransaction.deleteMany({ reference_id: booking.id });
-      await base44.entities.BankTransaction.deleteMany({ reference_id: booking.id });
-      await base44.entities.Payment.deleteMany({ booking_id: booking.id });
-      await base44.entities.Booking.delete(booking.id);
-    },
+    mutationFn: booking => base44.entities.Booking.delete(booking.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
@@ -64,33 +58,7 @@ export default function Bookings() {
   });
 
   const createPayment = useMutation({
-    mutationFn: async (paymentData) => {
-      const booking = paymentBooking;
-      await base44.entities.Payment.create(paymentData);
-      const newPaid = (Number(booking.paid_amount) || 0) + Number(paymentData.amount);
-      const newRemaining = Math.max(0, (Number(booking.final_amount) || 0) - newPaid);
-      
-      await base44.entities.Booking.update(booking.id, {
-        paid_amount: newPaid,
-        remaining_amount: newRemaining,
-        status: newRemaining === 0 ? 'مؤكد' : booking.status
-      });
-
-      if (paymentData.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number} (${booking.customer_name})`,
-          amount: Number(paymentData.amount), transaction_date: paymentData.payment_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number} (${booking.customer_name})`,
-          amount: Number(paymentData.amount), transaction_date: paymentData.payment_date,
-          payment_method: paymentData.payment_method === 'مدى' ? 'مدى' : 'تحويل بنكي',
-        });
-      }
-    },
+    mutationFn: paymentData => recordBookingPayment(paymentData),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setPaymentBooking(null);
@@ -360,8 +328,7 @@ export default function Bookings() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setDeleteBookingObj(booking)}
-                            title="حذف الحجز"
+                            disabled title="استخدم إلغاء الحجز للحفاظ على السندات" onClick={() => setDeleteBookingObj(booking)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Calendar, Wallet, MoreHorizontal, Plus, 
-  Building2, Receipt, BarChart3, Settings, FileText, AlertCircle, X, Crown, ChevronLeft
+  Building2, Receipt, BarChart3, Settings, FileText, AlertCircle, Crown, ChevronLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/AuthContext';
@@ -33,7 +33,7 @@ export default function IPhoneBottomNav() {
       {/* Native iOS Glassmorphism Floating Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-[env(safe-area-inset-bottom,8px)] pt-2 bg-card/90 backdrop-blur-2xl border-t border-border/80 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
         <div className="flex items-center justify-around max-w-md mx-auto">
-          
+
           {/* Tab 1: Dashboard */}
           <Link
             to="/"

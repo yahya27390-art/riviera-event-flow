@@ -2,17 +2,17 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { DEFAULT_PACKAGES } from '@/lib/systemSettings';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { 
   Plus, Pencil, Trash2, Package, Sparkles, Coffee, Utensils, 
-  Crown, Music, Flame, Gift, Check, RotateCcw, Eye, EyeOff
+  Crown, Music, Flame, Gift, RotateCcw, Eye, EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -164,7 +164,7 @@ export default function PackagesManagerTab() {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Top Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-3xl bg-card border border-border/80 shadow-sm">
         <div>
@@ -215,7 +215,7 @@ export default function PackagesManagerTab() {
               )}
             >
               <CardContent className="p-5 space-y-4">
-                
+
                 {/* Header info */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -304,7 +304,7 @@ export default function PackagesManagerTab() {
           </div>
 
           <form onSubmit={handleSave} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-            
+
             {/* Full Name */}
             <div className="space-y-1.5">
               <Label className="text-xs font-black text-foreground">اسم الباقة الكامل *</Label>

@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { 
-  Plus, CheckCircle2, Sparkles, CreditCard, Receipt, CalendarClock, ShieldCheck,
-  User, Lock, LogOut, KeyRound, ChevronDown, ShieldAlert
+import {
+  Plus, CheckCircle2, CreditCard, Receipt, CalendarClock, ShieldCheck, Lock, LogOut, KeyRound, ChevronDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -49,7 +48,7 @@ export default function LuxuryNavbar() {
     >
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
-          
+
           {/* Right Brand: Official Luxury Logo & Name */}
           <Link to="/" className="flex items-center gap-3 group select-none flex-shrink-0">
             <div className="relative">
@@ -93,7 +92,7 @@ export default function LuxuryNavbar() {
 
           {/* Left Actions: Quick Actions + User Menu + Theme */}
           <div className="flex items-center gap-2 sm:gap-2.5">
-            
+
             {/* Quick Actions (Desktop) */}
             <div className="hidden lg:flex items-center gap-1.5">
               <Button

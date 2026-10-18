@@ -1,3 +1,4 @@
+import { recordLedgerOperation } from '@/api/accountingOperations';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -8,7 +9,6 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Building2, TrendingUp, TrendingDown, Pencil, Trash2, Receipt, ArrowLeftRight, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import PageHeader from '@/components/shared/PageHeader';
@@ -59,44 +59,14 @@ export default function BankManagement() {
   });
 
   const create = useMutation({
-    mutationFn: async (data) => {
-      const amount = parseFloat(data.amount);
-      if (data.type === 'مصروف') {
-        // 1. Create official Expense record
-        const expense = await base44.entities.Expense.create({
-          expense_type: data.expense_type || 'أخرى',
-          amount,
-          payment_method: data.payment_method === 'نقدي' ? 'نقدي' : (data.payment_method || 'تحويل بنكي'),
-          description: data.reference_label || '',
-          expense_date: data.transaction_date,
-          edited_by: user?.full_name || user?.email || '—',
-        });
-
-        // 2. Create BankTransaction linked to the Expense
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف',
-          source: 'مصروف',
-          reference_id: expense.id,
-          reference_label: `${data.expense_type || 'مصروف'}${data.reference_label ? ' - ' + data.reference_label : ''}`,
-          payment_method: data.payment_method || 'مدى',
-          amount,
-          transaction_date: data.transaction_date,
-        });
-      } else {
-        // Regular Bank Income
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد',
-          source: 'يدوي',
-          reference_label: data.reference_label || 'إيراد بنكي',
-          payment_method: data.payment_method || 'مدى',
-          amount,
-          transaction_date: data.transaction_date,
-        });
-      }
-    },
-    onSuccess: () => { 
-      queryClient.invalidateQueries(); 
-      setShowDialog(false); 
+    mutationFn: data => recordLedgerOperation({
+      kind: data.type === 'مصروف' ? 'expense' : 'income', account: 'bank',
+      amount: Number(data.amount), transaction_date: data.transaction_date,
+      payment_method: data.payment_method || 'تحويل بنكي',
+      expense_type: data.expense_type || 'أخرى', description: data.reference_label || '' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setShowDialog(false);
       toast.success('تمت العملية وحفظ سند المصروف بنجاح'); 
     },
     onError: (err) => {
@@ -106,43 +76,7 @@ export default function BankManagement() {
   });
 
   const updateTransaction = useMutation({
-    mutationFn: async ({ id, data }) => {
-      const amount = parseFloat(data.amount);
-      const currentTx = transactions.find(t => t.id === id);
-
-      await base44.entities.BankTransaction.update(id, {
-        type: data.type,
-        reference_label: data.reference_label,
-        payment_method: data.payment_method,
-        amount,
-        transaction_date: data.transaction_date,
-      });
-
-      if (data.type === 'مصروف') {
-        if (currentTx?.reference_id && (currentTx.source === 'مصروف' || currentTx.type === 'مصروف')) {
-          await base44.entities.Expense.update(currentTx.reference_id, {
-            expense_type: data.expense_type || 'أخرى',
-            amount,
-            payment_method: data.payment_method || 'تحويل بنكي',
-            description: data.reference_label || '',
-            expense_date: data.transaction_date,
-            edited_by: user?.full_name || user?.email || '—',
-          }).catch(() => {});
-        } else {
-          const exp = await base44.entities.Expense.create({
-            expense_type: data.expense_type || 'أخرى',
-            amount,
-            payment_method: data.payment_method || 'تحويل بنكي',
-            description: data.reference_label || '',
-            expense_date: data.transaction_date,
-            edited_by: user?.full_name || user?.email || '—',
-          });
-          await base44.entities.BankTransaction.update(id, { reference_id: exp.id, source: 'مصروف' });
-        }
-      } else if (currentTx?.reference_id && currentTx.source === 'مصروف') {
-        await base44.entities.Expense.delete(currentTx.reference_id).catch(() => {});
-      }
-    },
+    mutationFn: async () => { throw new Error('تعديل الحركات المالية محظور للحفاظ على الأرصدة والسندات'); },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setShowDialog(false);
@@ -157,20 +91,7 @@ export default function BankManagement() {
   });
 
   const deleteTransaction = useMutation({
-    mutationFn: async (id) => {
-      const tx = transactions.find(t => t.id === id);
-      if (tx?.reference_id && tx.source === 'مصروف') {
-        await base44.entities.Expense.delete(tx.reference_id).catch(() => {});
-      }
-      if (tx?.source === 'تحويل') {
-        if (tx.reference_id) {
-          await base44.entities.CashTransaction.deleteMany({ reference_id: tx.reference_id }).catch(() => {});
-        } else {
-          await base44.entities.CashTransaction.deleteMany({ amount: tx.amount, transaction_date: tx.transaction_date, source: 'تحويل' }).catch(() => {});
-        }
-      }
-      await base44.entities.BankTransaction.delete(id);
-    },
+    mutationFn: async () => { throw new Error('حذف الحركات المالية محظور للحفاظ على الأرصدة والسندات'); },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setDeleteTransactionId(null);
@@ -179,45 +100,8 @@ export default function BankManagement() {
   });
 
   const transferFunds = useMutation({
-    mutationFn: async ({ direction, data }) => {
-      const amount = parseFloat(data.amount);
-      const userName = user?.full_name || user?.email || '—';
-      const date = data.transaction_date;
-      const transferId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `trf-${Date.now()}`;
-      if (direction === 'toBank') {
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل إلى البنك - بواسطة: ${userName}`,
-          description: 'تحويل نقدي من الخزينة إلى الحساب البنكي',
-          amount, transaction_date: date,
-        });
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل من الخزينة - بواسطة: ${userName}`,
-          description: 'إيداع نقدي محول من الخزينة تلقائياً',
-          payment_method: 'تحويل بنكي',
-          amount, transaction_date: date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل إلى الخزينة - بواسطة: ${userName}`,
-          description: 'سحب بنكي وتوريد للخزينة',
-          payment_method: 'تحويل بنكي',
-          amount, transaction_date: date,
-        });
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'تحويل',
-          reference_id: transferId,
-          reference_label: `تحويل من البنك - بواسطة: ${userName}`,
-          description: 'إيداع نقدي بالخزينة مسحوب من البنك',
-          amount, transaction_date: date,
-        });
-      }
-    },
+    mutationFn: ({ direction, data }) => recordLedgerOperation({ kind: 'transfer',
+      account: 'bank', direction, amount: Number(data.amount), transaction_date: data.transaction_date }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setTransferConfirm(null);
@@ -302,7 +186,7 @@ export default function BankManagement() {
                     <TableCell className="font-medium text-sm">{formatCurrency(t.amount)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                        <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                           const isExp = t.type === 'مصروف';
                           setForm({
                             type: t.type,
@@ -319,7 +203,7 @@ export default function BankManagement() {
                           <Pencil className="w-4 h-4" />
                         </Button>
                         {isAdmin && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTransactionId(t.id)}>
+                          <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTransactionId(t.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -455,7 +339,7 @@ export default function BankManagement() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-black text-foreground">{form.type === 'مصروف' ? 'بيان وتفاصيل المصروف' : 'الوصف والملاحظات'}</Label>
-              <Input 
+              <Input
                 value={form.reference_label} 
                 onChange={e => setForm({ ...form, reference_label: e.target.value })} 
                 placeholder={form.type === 'مصروف' ? 'مثال: سداد فاتورة كهرباء، صيانة أجهزة، كماليات...' : 'تفاصيل الإيراد البنكي...'}
@@ -471,7 +355,7 @@ export default function BankManagement() {
 
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setShowDialog(false)} className="rounded-xl">إلغاء</Button>
-              <Button 
+              <Button
                 type="submit" 
                 disabled={create.isPending || updateTransaction.isPending}
                 className={cn(

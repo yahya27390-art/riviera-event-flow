@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { KeyRound, ShieldCheck, Lock, Sparkles } from 'lucide-react';
+import { KeyRound, ShieldCheck, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ForceChangePasscodeModal() {
@@ -20,8 +20,8 @@ export default function ForceChangePasscodeModal() {
       return;
     }
 
-    if (newPasscode.trim().length < 4) {
-      setError('رمز المرور يجب أن يتكون من 4 أرقام/أحرف على الأقل');
+    if (newPasscode.trim().length < 8) {
+      setError('رمز المرور يجب أن يتكون من 8 أحرف/أحرف على الأقل');
       return;
     }
 
@@ -50,7 +50,7 @@ export default function ForceChangePasscodeModal() {
   return (
     <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-950/85 backdrop-blur-xl p-4 animate-in fade-in duration-300 font-cairo">
       <div className="relative w-full max-w-md rounded-3xl bg-card border border-amber-500/30 shadow-2xl overflow-hidden p-6 sm:p-8 glass-card">
-        
+
         {/* Glow Header */}
         <div className="text-center space-y-3 pb-4">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/20">

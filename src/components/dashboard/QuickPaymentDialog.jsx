@@ -1,3 +1,4 @@
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -37,41 +38,9 @@ export default function QuickPaymentDialog({ open, onClose }) {
   const selectedBooking = bookings.find(b => b.id === selectedBookingId);
 
   const createPayment = useMutation({
-    mutationFn: async () => {
-      const booking = selectedBooking;
-      const hijri = paymentDateHijri || gregorianToHijri(paymentDate);
-      const paymentData = {
-        booking_id: booking.id,
-        booking_number: booking.booking_number,
-        amount: parseFloat(amount),
-        payment_method: paymentMethod,
-        payment_date: paymentDate,
-        payment_date_hijri: hijri,
-        notes: 'سداد دفعة',
-      };
-      await base44.entities.Payment.create(paymentData);
-      const newPaid = (booking.paid_amount || 0) + parseFloat(amount);
-      await base44.entities.Booking.update(booking.id, {
-        paid_amount: newPaid,
-        remaining_amount: (booking.final_amount || 0) - newPaid,
-      });
-      if (paymentMethod === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: parseFloat(amount), transaction_date: paymentDate,
-          transaction_date_hijri: hijri,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: parseFloat(amount), transaction_date: paymentDate,
-          transaction_date_hijri: hijri,
-          payment_method: paymentMethod === 'مدى' ? 'مدى' : 'تحويل بنكي',
-        });
-      }
-    },
+    mutationFn: () => recordBookingPayment({ booking_id: selectedBookingId,
+      amount: Number(amount), payment_method: paymentMethod, payment_date: paymentDate,
+      notes: 'سداد دفعة' }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('تم تسجيل الدفعة بنجاح');

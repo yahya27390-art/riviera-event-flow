@@ -1,7 +1,8 @@
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from 'sonner';
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -49,8 +50,16 @@ const AuthenticatedApp = () => {
       {/* Mandatory First-Login Password Change Modal */}
       {mustChangePasscode && <ForceChangePasscodeModal />}
 
+      {/* No financial screens or queries mount until password change completes. */}
+      {mustChangePasscode ? null : <AuthenticatedRoutes isLocked={isLocked} />}
+    </>
+  );
+};
+
+const AuthenticatedRoutes = ({ isLocked }) => (
+    <>
       {/* Inactivity Auto-Lock Overlay */}
-      {isLocked && !mustChangePasscode && <LockScreen />}
+      {isLocked && <LockScreen />}
 
       <Routes>
         <Route element={<AppLayout />}>
@@ -63,7 +72,7 @@ const AuthenticatedApp = () => {
           <Route path="/bank" element={<BankManagement />} />
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/admin" element={<AdminSettings />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/customer-statement" element={<CustomerStatement />} />
           <Route path="/pending-payments" element={<PendingPayments />} />
         </Route>
@@ -71,8 +80,12 @@ const AuthenticatedApp = () => {
       </Routes>
     </>
   );
-};
 
+
+const AdminPage = () => {
+  const { user } = useAuth();
+  return user?.role === 'admin' ? <AdminSettings /> : <Navigate to="/" replace />;
+};
 
 function App() {
   return (
@@ -84,6 +97,7 @@ function App() {
         </Router>
         <IOSInstallPrompt />
         <Toaster />
+        <SonnerToaster richColors position="top-center" dir="rtl" />
         </QueryClientProvider>
       </ThemeProvider>
     </AuthProvider>

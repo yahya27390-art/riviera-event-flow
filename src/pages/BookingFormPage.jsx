@@ -1,3 +1,4 @@
+import { createBookingWithDeposit } from '@/api/accountingOperations';
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ export default function BookingFormPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isEdit = !!id;
+  const bookingNumber = React.useRef(generateBookingNumber());
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ['bookings'],
@@ -21,38 +23,7 @@ export default function BookingFormPage() {
   const editingBooking = isEdit ? bookings.find(b => b.id === id) : null;
 
   const createBooking = useMutation({
-    mutationFn: async (data) => {
-      const bookingNumber = generateBookingNumber();
-      const created = await base44.entities.Booking.create({ ...data, booking_number: bookingNumber });
-      if (data.initial_payment_amount > 0) {
-        const pMethod = data.initial_payment_method || 'نقدي';
-        await base44.entities.Payment.create({
-          booking_id: created.id,
-          booking_number: bookingNumber,
-          amount: data.initial_payment_amount,
-          payment_method: pMethod,
-          payment_date: new Date().toISOString().split('T')[0],
-          notes: 'دفعة الحجز الأولى',
-        });
-        if (pMethod === 'نقدي') {
-          await base44.entities.CashTransaction.create({
-            type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `دفعة حجز ${bookingNumber}`,
-            amount: data.initial_payment_amount,
-            transaction_date: new Date().toISOString().split('T')[0],
-          });
-        } else {
-          await base44.entities.BankTransaction.create({
-            type: 'إيراد', source: 'حجز', reference_id: created.id,
-            reference_label: `دفعة حجز ${bookingNumber}`,
-            amount: data.initial_payment_amount,
-            transaction_date: new Date().toISOString().split('T')[0],
-            payment_method: pMethod === 'مدى' ? 'مدى' : 'تحويل بنكي',
-          });
-        }
-      }
-      return created;
-    },
+    mutationFn: data => createBookingWithDeposit({ ...data, booking_number: bookingNumber.current }),
     onSuccess: (data) => {
       queryClient.invalidateQueries();
       navigate(`/bookings/${data.id}`);

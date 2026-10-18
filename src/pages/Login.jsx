@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Crown, Lock, Mail, KeyRound, ShieldCheck, Eye, EyeOff, AlertTriangle, Sparkles, Building2 } from 'lucide-react';
+import { Crown, Mail, KeyRound, ShieldCheck, Eye, EyeOff, AlertTriangle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
@@ -41,7 +41,7 @@ export default function Login() {
       <div className="absolute bottom-1/4 -left-20 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-md rounded-3xl bg-card/90 backdrop-blur-2xl border border-amber-500/20 shadow-2xl overflow-hidden p-6 sm:p-8">
-        
+
         {/* Header Branding */}
         <div className="text-center space-y-3 pb-6">
           <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 p-0.5 shadow-xl shadow-amber-500/20">
@@ -92,7 +92,7 @@ export default function Login() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-bold text-foreground">رمز المرور السري (Passcode / PIN)</Label>
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">مشفر SHA-256</span>
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">دخول آمن</span>
             </div>
             <div className="relative">
               <Input

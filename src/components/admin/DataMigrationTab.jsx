@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Database, Upload, Download, CheckCircle2, AlertCircle, RefreshCw, 
-  Trash2, ShieldCheck, Clock, FileJson, Archive, Sparkles, HardDrive
+  Database, Download, RefreshCw, FileJson, Archive, HardDrive
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -51,7 +50,7 @@ export default function DataMigrationTab() {
   };
 
   const handleRestore = async (snapshot) => {
-    if (!window.confirm(`هل أنت متأكد من رغبتك في استعادة بيانات النسخة الاحتياطية المؤرخة بـ (${snapshot.dateStr})؟ سيتم استبدال البيانات الحالية.`)) {
+    if (!window.confirm(`هل أنت متأكد من رغبتك في استعادة بيانات النسخة الاحتياطية المؤرخة بـ (${snapshot.dateStr})؟ الاستعادة فوق السجلات الحالية موقوفة.`)) {
       return;
     }
 
@@ -109,7 +108,7 @@ export default function DataMigrationTab() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      
+
       {/* Automated Backup & Retention Banner */}
       <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 border border-emerald-500/30 text-foreground flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
         <div className="flex items-center gap-3.5">
@@ -119,10 +118,10 @@ export default function DataMigrationTab() {
           <div>
             <h3 className="text-base font-black flex items-center gap-2">
               الجدولة التلقائية للنسخ الاحتياطي والحذف الدوري
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">مفعل 24/7 🛡️</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">عند فتح النظام</span>
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              نسخ احتياطي يومي تلقائي • احتفاظ دوري لمدة 15 يوماً • حذف تلقائي للنسخ الأقدم من 15 يوماً
+              نسخة محلية عند فتح النظام بحساب المدير • احتفاظ دوري لمدة 15 يوماً • حذف تلقائي للنسخ الأقدم من 15 يوماً
             </p>
           </div>
         </div>
@@ -236,7 +235,7 @@ export default function DataMigrationTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={restoringId === b.id}
+                      disabled
                       onClick={() => handleRestore(b)}
                       className="rounded-xl gap-1 text-xs font-bold h-9 border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                     >

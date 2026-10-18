@@ -14,11 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { 
-  Building2, Save, Upload, Users, Plus, Crown, Trash2, ShieldAlert, 
-  Mail, Database, Package, Sliders, DollarSign, FileText, CheckCircle2,
-  Building, CalendarHeart, Receipt, ShieldCheck, Sparkles, Scale
+  Building2, Save, Upload, Users, Plus, Trash2, Database, Package, Sliders, DollarSign, FileText,
+  Building, Receipt, ShieldCheck, Scale
 } from 'lucide-react';
-import PageHeader from '@/components/shared/PageHeader';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 import DataMigrationTab from '@/components/admin/DataMigrationTab';
@@ -26,6 +24,7 @@ import PackagesManagerTab from '@/components/admin/PackagesManagerTab';
 import SectionsEventsManagerTab from '@/components/admin/SectionsEventsManagerTab';
 import BankingPaymentManagerTab from '@/components/admin/BankingPaymentManagerTab';
 import SecuritySettingsTab from '@/components/admin/SecuritySettingsTab';
+import { KeyRound } from 'lucide-react';
 
 export default function AdminSettings() {
   const queryClient = useQueryClient();
@@ -49,7 +48,7 @@ export default function AdminSettings() {
     queryFn: () => base44.entities.HallSettings.list(),
   });
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [], dataUpdatedAt: usersUpdatedAt } = useQuery({
     queryKey: ['users'],
     queryFn: () => base44.entities.User.list(),
   });
@@ -124,14 +123,14 @@ export default function AdminSettings() {
   const [resettingEmail, setResettingEmail] = useState(null);
 
   useEffect(() => {
-    getUsersSecurityMap().then(map => setSecurityMap(map || {}));
-  }, [users]);
+    getUsersSecurityMap().then(map => setSecurityMap(map || {})).catch(error => toast.error(error.message));
+  }, [usersUpdatedAt]);
 
   const [userForm, setUserForm] = useState({
     full_name: '',
     email: '',
     role: 'accountant',
-    tempPasscode: '1234',
+    tempPasscode: crypto.randomUUID().slice(0, 16),
     mustChange: true,
   });
 
@@ -176,7 +175,7 @@ export default function AdminSettings() {
         email: cleanEmail,
         full_name: userForm.full_name.trim() || 'مستخدم جديد',
         role: userForm.role,
-        tempPasscode: userForm.tempPasscode.trim() || '1234',
+        tempPasscode: userForm.tempPasscode.trim(),
         mustChange: userForm.mustChange
       });
 
@@ -184,7 +183,7 @@ export default function AdminSettings() {
         duration: 7000
       });
       setShowInviteDialog(false);
-      setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: '1234', mustChange: true });
+      setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: crypto.randomUUID().slice(0, 16), mustChange: true });
       queryClient.invalidateQueries({ queryKey: ['users'] });
       const updatedMap = await getUsersSecurityMap();
       setSecurityMap(updatedMap || {});
@@ -199,7 +198,7 @@ export default function AdminSettings() {
     if (!userEmail) return;
     setResettingEmail(userEmail);
     try {
-      const res = await resetUserPasscode(userEmail, '1234');
+      const res = await resetUserPasscode(userEmail);
       toast.success(`تمت إعادة تعيين رمز المرور للمستخدم (${userEmail}) إلى الرمز المؤقت: ${res.tempPasscode} 🔑 وسيُطلب منه تغييره عند تسجيل الدخول.`);
       const updatedMap = await getUsersSecurityMap();
       setSecurityMap(updatedMap || {});
@@ -227,7 +226,7 @@ export default function AdminSettings() {
 
   return (
     <div className="space-y-6 pb-20">
-      
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5 rounded-3xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white shadow-xl border border-emerald-800/40">
         <div className="flex items-center gap-3.5">
@@ -249,7 +248,7 @@ export default function AdminSettings() {
 
       {/* Main Tabbed Control Center */}
       <Tabs defaultValue="identity" className="space-y-6">
-        
+
         {/* Responsive Inset Tab List */}
         <div className="overflow-x-auto no-scrollbar pb-1">
           <TabsList className="h-12 bg-card border border-border/80 p-1 rounded-2xl flex items-center gap-1 w-max min-w-full">
@@ -298,17 +297,17 @@ export default function AdminSettings() {
         {/* TAB 1: Hall Identity & Legal Information */}
         <TabsContent value="identity" className="space-y-6">
           <form onSubmit={e => { e.preventDefault(); saveSettings.mutate(form); }} className="space-y-6">
-            
+
             {/* Logo and Hall Name */}
             <Card className="rounded-3xl border border-border/80 shadow-sm overflow-hidden">
               <CardHeader className="p-5 pb-4 bg-muted/20 border-b border-border/50">
                 <CardTitle className="text-base font-black">الشعار الرسمي وهوية القاعة</CardTitle>
                 <CardDescription className="text-xs">تغيير الشعار والاسم المعتمد في العقود وسندات القبض</CardDescription>
               </CardHeader>
-              
+
               <CardContent className="p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-start gap-6">
-                  
+
                   {/* Logo Image Preview */}
                   <div className="flex-shrink-0 flex flex-col items-center sm:items-start">
                     <img 
@@ -371,7 +370,7 @@ export default function AdminSettings() {
 
             {/* Official Legal & Saudi Contact Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
+
               {/* Saudi Legal Data */}
               <Card className="rounded-3xl border border-border/80 shadow-sm overflow-hidden">
                 <CardHeader className="p-5 pb-4 bg-muted/20 border-b border-border/50">
@@ -383,10 +382,10 @@ export default function AdminSettings() {
                 <CardContent className="p-5 space-y-3.5">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">رقم السجل التجاري (10 أرقام)</Label>
-                    <Input 
+                    <Input
                       value={form.commercial_register} 
                       onChange={e => setForm({ ...form, commercial_register: e.target.value })} 
-                      dir="ltr" 
+                      dir="ltr"
                       placeholder="1010XXXXXX"
                       className="rounded-xl font-mono text-sm"
                     />
@@ -394,10 +393,10 @@ export default function AdminSettings() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">الرقم الضريبي VAT (15 رقم)</Label>
-                    <Input 
+                    <Input
                       value={form.tax_number} 
                       onChange={e => setForm({ ...form, tax_number: e.target.value })} 
-                      dir="ltr" 
+                      dir="ltr"
                       placeholder="3000XXXXXXXX003"
                       className="rounded-xl font-mono text-sm"
                     />
@@ -405,7 +404,7 @@ export default function AdminSettings() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">المدينة</Label>
-                    <Input 
+                    <Input
                       value={form.city} 
                       onChange={e => setForm({ ...form, city: e.target.value })} 
                       placeholder="الرياض" 
@@ -415,7 +414,7 @@ export default function AdminSettings() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">العنوان والحي</Label>
-                    <Input 
+                    <Input
                       value={form.address} 
                       onChange={e => setForm({ ...form, address: e.target.value })} 
                       placeholder="حي القيروان، طريق الملك فهد" 
@@ -436,10 +435,10 @@ export default function AdminSettings() {
                 <CardContent className="p-5 space-y-3.5">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">رقم هاتف وإدارة القاعة</Label>
-                    <Input 
+                    <Input
                       value={form.phone} 
                       onChange={e => setForm({ ...form, phone: e.target.value })} 
-                      dir="ltr" 
+                      dir="ltr"
                       placeholder="+966 5X XXX XXXX"
                       className="rounded-xl font-mono text-sm"
                     />
@@ -447,11 +446,11 @@ export default function AdminSettings() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">البريد الإلكتروني للإدارة</Label>
-                    <Input 
+                    <Input
                       type="email" 
                       value={form.email} 
                       onChange={e => setForm({ ...form, email: e.target.value })} 
-                      dir="ltr" 
+                      dir="ltr"
                       placeholder="info@qemat-alreef.com"
                       className="rounded-xl font-mono text-sm"
                     />
@@ -459,10 +458,10 @@ export default function AdminSettings() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold">الموقع الإلكتروني</Label>
-                    <Input 
+                    <Input
                       value={form.website} 
                       onChange={e => setForm({ ...form, website: e.target.value })} 
-                      dir="ltr" 
+                      dir="ltr"
                       placeholder="https://qemat-alreef.com"
                       className="rounded-xl font-mono text-sm"
                     />
@@ -500,7 +499,7 @@ export default function AdminSettings() {
         {/* TAB 4: Default Pricing & Contract Terms */}
         <TabsContent value="pricing" className="space-y-6">
           <form onSubmit={e => { e.preventDefault(); saveSettings.mutate(form); }} className="space-y-6">
-            
+
             <Card className="rounded-3xl border border-border/80 shadow-sm overflow-hidden">
               <CardHeader className="p-5 pb-4 bg-muted/20 border-b border-border/50">
                 <CardTitle className="text-base font-black flex items-center gap-2">
@@ -512,7 +511,7 @@ export default function AdminSettings() {
 
               <CardContent className="p-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                  
+
                   <div className="space-y-1.5 p-3 rounded-2xl bg-muted/40 border border-border/60">
                     <Label className="text-xs font-black">إيجار الفترة المسائية (سهرة) *</Label>
                     <Input
@@ -621,7 +620,7 @@ export default function AdminSettings() {
               </div>
               <Button 
                 onClick={() => {
-                  setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: '1234', mustChange: true });
+                  setUserForm({ full_name: '', email: '', role: 'accountant', tempPasscode: crypto.randomUUID().slice(0, 16), mustChange: true });
                   setShowInviteDialog(true);
                 }} 
                 size="sm" 
@@ -631,7 +630,7 @@ export default function AdminSettings() {
               </Button>
             </CardHeader>
             <CardContent className="p-5 space-y-4">
-              
+
               {/* Owner Super Admin Banner */}
               <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-3">
@@ -695,7 +694,7 @@ export default function AdminSettings() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {isTemp ? (
+                              {secInfo.disabled ? <Badge variant="outline">الحساب موقوف</Badge> : isTemp ? (
                                 <Badge variant="outline" className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 text-[11px] font-semibold gap-1">
                                   رمز مؤقت (سيتغير عند الدخول) ⏳
                                 </Badge>
@@ -712,13 +711,13 @@ export default function AdminSettings() {
                                   size="sm" 
                                   onClick={() => handleResetUserPasscode(u.email)}
                                   disabled={resettingEmail === u.email}
-                                  title="إعادة تعيين رمز المرور المؤقت إلى 1234"
+                                  title="إعادة تعيين رمز المرور المؤقت إلى كلمة مرور عشوائية"
                                   className="h-8 px-2.5 rounded-xl text-[11px] font-bold border-amber-500/30 hover:bg-amber-500/10 text-amber-700 dark:text-amber-400 gap-1"
                                 >
                                   <KeyRound className="w-3.5 h-3.5" />
                                   <span>{resettingEmail === u.email ? 'جاري...' : 'إعادة تعيين رمز مؤقت'}</span>
                                 </Button>
-                                
+
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -828,12 +827,12 @@ export default function AdminSettings() {
                 type="text"
                 value={userForm.tempPasscode}
                 onChange={e => setUserForm(prev => ({ ...prev, tempPasscode: e.target.value }))}
-                placeholder="1234"
+                placeholder="8 أحرف على الأقل"
                 required
                 className="h-11 rounded-2xl bg-muted/40 font-mono font-bold text-sm tracking-widest text-center"
               />
               <p className="text-[11px] text-muted-foreground">
-                ستعطي هذا الرمز للموظف للدخول به أول مرة (الافتراضي 1234).
+                ستعطي هذا الرمز للموظف للدخول به أول مرة (8 أحرف على الأقل).
               </p>
             </div>
 

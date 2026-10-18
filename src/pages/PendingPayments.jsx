@@ -1,8 +1,8 @@
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -57,26 +57,7 @@ export default function PendingPayments() {
   }, [pendingBookings, search]);
 
   const createPayment = useMutation({
-    mutationFn: async (paymentData) => {
-      await base44.entities.Payment.create(paymentData);
-      const booking = bookings.find(b => b.id === paymentData.booking_id);
-      const newPaid = (booking.paid_amount || 0) + paymentData.amount;
-      const newRemaining = (booking.final_amount || 0) - newPaid;
-      await base44.entities.Booking.update(booking.id, { paid_amount: newPaid, remaining_amount: newRemaining });
-      if (paymentData.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: paymentData.amount, transaction_date: paymentData.payment_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: paymentData.amount, transaction_date: paymentData.payment_date, payment_method: paymentData.payment_method || 'تحويل بنكي',
-        });
-      }
-    },
+    mutationFn: paymentData => recordBookingPayment(paymentData),
     onSuccess: () => { queryClient.invalidateQueries(); setPaymentDialog(null); toast.success('تم تسجيل الدفعة بنجاح'); },
   });
 

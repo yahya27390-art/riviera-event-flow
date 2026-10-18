@@ -1,3 +1,4 @@
+import { recordLedgerOperation } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -5,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Receipt, Trash2, Pencil, Printer } from 'lucide-react';
@@ -73,22 +74,10 @@ export default function Expenses() {
   const hallSettings = settingsList[0] || {};
 
   const create = useMutation({
-    mutationFn: async (data) => {
-      const expense = await base44.entities.Expense.create({ ...data, amount: parseFloat(data.amount) });
-      if (data.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
-          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
-          amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: expense.id,
-          reference_label: `${data.expense_type}${data.description ? ' - ' + data.description : ''}`,
-          amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      }
-    },
+    mutationFn: data => recordLedgerOperation({ kind: 'expense',
+      account: data.payment_method === 'نقدي' ? 'cash' : 'bank', amount: Number(data.amount),
+      payment_method: data.payment_method === 'بنك' ? 'تحويل بنكي' : data.payment_method,
+      expense_type: data.expense_type, description: data.description || '', transaction_date: data.expense_date }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       setShowDialog(false);
@@ -98,40 +87,12 @@ export default function Expenses() {
   });
 
   const deleteExpense = useMutation({
-    mutationFn: async (id) => {
-      await base44.entities.Expense.delete(id);
-      await base44.entities.CashTransaction.deleteMany({ reference_id: id, source: 'مصروف' }).catch(() => {});
-      await base44.entities.BankTransaction.deleteMany({ reference_id: id, source: 'مصروف' }).catch(() => {});
-    },
+    mutationFn: async () => { throw new Error('حذف المصروفات المسجلة محظور للحفاظ على الأرصدة'); },
     onSuccess: () => { queryClient.invalidateQueries(); setDeleteId(null); toast.success('تم حذف المصروف'); },
   });
 
   const updateExpense = useMutation({
-    mutationFn: async ({ id, data }) => {
-      await base44.entities.Expense.update(id, {
-        expense_type: data.expense_type,
-        amount: parseFloat(data.amount),
-        payment_method: data.payment_method,
-        description: data.description,
-        expense_date: data.expense_date,
-        edited_by: user?.full_name || user?.email || '—',
-      });
-      // مزامنة المعاملة المرتبطة (حذف القديمة وإنشاء الجديدة)
-      await base44.entities.CashTransaction.deleteMany({ reference_id: id, source: 'مصروف' });
-      await base44.entities.BankTransaction.deleteMany({ reference_id: id, source: 'مصروف' });
-      const label = `${data.expense_type}${data.description ? ' - ' + data.description : ''}`;
-      if (data.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: id,
-          reference_label: label, amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'مصروف', source: 'مصروف', reference_id: id,
-          reference_label: label, amount: parseFloat(data.amount), transaction_date: data.expense_date,
-        });
-      }
-    },
+    mutationFn: async () => { throw new Error('تعديل المصروفات المسجلة محظور للحفاظ على الأرصدة'); },
     onSuccess: () => {
       queryClient.invalidateQueries();
       setShowDialog(false);
@@ -315,7 +276,7 @@ export default function Expenses() {
                     <TableCell>
                       {isAdmin ? (
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                          <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                             setForm({
                               expense_type: e.expense_type,
                               amount: String(e.amount || ''),
@@ -329,7 +290,7 @@ export default function Expenses() {
                           }}>
                             <Pencil className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(e.id)}>
+                          <Button disabled title="السجل المالي محفوظ" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteId(e.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -364,7 +325,7 @@ export default function Expenses() {
           </div>
 
           <form onSubmit={e => { e.preventDefault(); if (editExpenseId) { setConfirmEdit(true); } else { create.mutate(form); } }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-            
+
             {/* Category Selector */}
             <div className="space-y-2">
               <Label className="text-xs font-black text-foreground">نوع وبند المصروف</Label>

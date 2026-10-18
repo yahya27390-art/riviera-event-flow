@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { gregorianToHijri } from '@/lib/hijri';
 import { buildPaymentReceipt } from '@/components/print/PaymentReceipt';
 import { buildPaymentReceiptBW } from '@/components/print/ReportPageBuilder';
 import { openPrintWindow } from '@/lib/printReport';
-import { Receipt, CreditCard, CheckCircle2, DollarSign, Wallet, Building2, Smartphone } from 'lucide-react';
+import { Receipt, CreditCard, CheckCircle2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { cn } from '@/lib/utils';
@@ -53,7 +53,7 @@ export default function PaymentDialog({ open, onClose, booking, onSubmit, isLoad
     const paidAfter = (booking.paid_amount || 0) + parseFloat(payment.amount || 0);
     const updatedBooking = { ...booking, paid_amount: paidAfter, remaining_amount: (booking.final_amount || 0) - paidAfter };
     const receiptNum = `${booking.booking_number || 'N/A'}-P`;
-    
+
     if (bw) {
       const html = buildPaymentReceiptBW(hallSettings, updatedBooking, payment, receiptNum);
       openPrintWindow(html, `إيصال سداد - ${receiptNum}`);
@@ -73,7 +73,7 @@ export default function PaymentDialog({ open, onClose, booking, onSubmit, isLoad
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-3xl border-border/80 shadow-2xl glass-card">
-        
+
         {/* iOS Luxury Modal Header */}
         <div className="p-5 pb-4 bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white border-b border-emerald-800/40">
           <div className="flex items-center justify-between">
@@ -93,7 +93,7 @@ export default function PaymentDialog({ open, onClose, booking, onSubmit, isLoad
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
-          
+
           {/* Financial Summary Card */}
           <div className="p-4 rounded-2xl bg-muted/40 border border-border/80 space-y-2 text-xs sm:text-sm">
             <div className="flex justify-between items-center text-muted-foreground">
@@ -116,9 +116,9 @@ export default function PaymentDialog({ open, onClose, booking, onSubmit, isLoad
               <Label className="text-xs font-black text-foreground">مبلغ الدفعة المحصلة الآن *</Label>
               <span className="text-[11px] text-muted-foreground">أقصى حد: {formatCurrency(remaining)}</span>
             </div>
-            
+
             <div className="relative">
-              <Input 
+              <Input
                 type="number" 
                 value={payment.amount} 
                 onChange={e => setPayment({ ...payment, amount: e.target.value })} 

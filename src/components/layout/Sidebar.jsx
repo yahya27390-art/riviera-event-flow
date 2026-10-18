@@ -4,12 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { 
   LayoutDashboard, Calendar, Wallet, Building2, 
-  Receipt, BarChart3, ChevronRight, Menu, X, Crown, Settings, FileText, AlertCircle, Sparkles, CheckCircle2
+  Receipt, BarChart3, ChevronRight, Menu, X, Settings, FileText, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ThemeToggle from '@/components/shared/ThemeToggle';
 import { useAuth } from '@/lib/AuthContext';
-import { Badge } from '@/components/ui/badge';
 
 const navItems = [
   { path: '/', label: 'لوحة التحكم', icon: LayoutDashboard },
@@ -27,7 +26,7 @@ export default function Sidebar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user } = useAuth();
-  
+
   const { data: settingsList = [] } = useQuery({
     queryKey: ['hallSettings'],
     queryFn: () => base44.entities.HallSettings.list(),

@@ -1,3 +1,5 @@
+import { bookingBasePrice, money } from '@/lib/accounting';
+import { recordBookingPayment } from '@/api/accountingOperations';
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
@@ -79,33 +81,7 @@ export default function BookingActionCard({ booking }) {
   });
 
   const createPayment = useMutation({
-    mutationFn: async () => {
-      const amt = parseFloat(payment.amount);
-      await base44.entities.Payment.create({
-        booking_id: booking.id, booking_number: booking.booking_number,
-        amount: amt, payment_method: payment.payment_method,
-        payment_date: payment.payment_date, notes: 'دفعة من التقويم',
-      });
-      const newPaid = (booking.paid_amount || 0) + amt;
-      await base44.entities.Booking.update(booking.id, {
-        paid_amount: newPaid,
-        remaining_amount: (booking.final_amount || 0) - newPaid,
-      });
-      if (payment.payment_method === 'نقدي') {
-        await base44.entities.CashTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: amt, transaction_date: payment.payment_date,
-        });
-      } else {
-        await base44.entities.BankTransaction.create({
-          type: 'إيراد', source: 'حجز', reference_id: booking.id,
-          reference_label: `دفعة حجز ${booking.booking_number}`,
-          amount: amt, transaction_date: payment.payment_date,
-          payment_method: payment.payment_method === 'مدى' ? 'مدى' : 'تحويل بنكي',
-        });
-      }
-    },
+    mutationFn: () => recordBookingPayment({ ...payment, amount: Number(payment.amount), booking_id: booking.id }),
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast.success('تم تسجيل الدفعة');
@@ -130,13 +106,13 @@ export default function BookingActionCard({ booking }) {
       quantity: item.quantity, total: item.price * item.quantity,
     }));
     const allItems = [...existingItems, ...itemsToAdd];
-    const total_amount = allItems.reduce((sum, item) => sum + (item.total || 0), 0);
-    const discount = booking.discount || 0;
-    const final_amount = total_amount - discount;
+    const total_amount = money(bookingBasePrice(booking) + allItems.reduce((sum, item) => sum + Number(item.total || 0), 0));
+    const discount = Number(booking.discount || 0);
+    const final_amount = money(total_amount - discount);
     const paid_amount = booking.paid_amount || 0;
     const remaining_amount = final_amount - paid_amount;
 
-    const data = { ...editForm, items: allItems, total_amount, final_amount, remaining_amount };
+    const data = { expected_updated_at: booking.updated_at, ...editForm, items: allItems, total_amount, final_amount, remaining_amount };
     setLastSavedBooking({ ...booking, ...data });
     setLastAddedItems(itemsToAdd);
     updateBooking.mutate({ id: booking.id, data });
@@ -249,7 +225,7 @@ export default function BookingActionCard({ booking }) {
             <CreditCard className="w-3.5 h-3.5 ml-1" /> دفعة
           </Button>
           {isAdmin && (
-            <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" onClick={handleDeleteClick}>
+            <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10" disabled title="استخدم إلغاء الحجز للحفاظ على السندات" onClick={handleDeleteClick}>
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}

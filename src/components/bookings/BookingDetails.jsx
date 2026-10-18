@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowRight, Pencil, CreditCard, Printer, X, Eye, Receipt } from 'lucide-react';
+import { ArrowRight, Pencil, CreditCard, Eye, Receipt } from 'lucide-react';
 import { buildPaymentReceipt } from '@/components/print/PaymentReceipt';
 import { buildPaymentReceiptBW } from '@/components/print/ReportPageBuilder';
 import { openPrintWindow } from '@/lib/printReport';

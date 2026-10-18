@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import moment from 'moment-hijri';
 import { HIJRI_MONTHS, HIJRI_DAYS, getHijriMonthGrid } from '@/lib/hijri';
-import { ChevronRight, ChevronLeft, Calendar as CalendarIcon, Sparkles, Check } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 export default function HijriDatePicker({ value, onChange, label, required, placeholder }) {
@@ -137,7 +137,7 @@ export default function HijriDatePicker({ value, onChange, label, required, plac
       {/* Interactive Popover Sheet */}
       {open && (
         <div className="absolute top-full mt-2 z-50 bg-card/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-border/80 rounded-3xl shadow-2xl p-4 w-full sm:w-84 right-0 animate-in fade-in zoom-in-95 duration-200">
-          
+
           {/* Quick Presets for Saudi Events */}
           <div className="pb-3 mb-3 border-b border-border/60">
             <p className="text-[11px] font-bold text-muted-foreground mb-2 flex items-center gap-1">
