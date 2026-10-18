@@ -1,3 +1,4 @@
+import { BOOKING_PRICE_PRESETS, DEFAULT_BOOKING_PRICE, DEFAULT_BOOKING_STATUS } from '@/lib/bookingDefaults';
 import { bookingBasePrice, money } from '@/lib/accounting';
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -29,7 +30,7 @@ const iconMap = {
   Sparkles: Sparkles,
 };
 
-const pricePresets = [8000, 10000, 12000, 15000, 18000, 20000];
+const pricePresets = BOOKING_PRICE_PRESETS;
 
 export default function BookingForm({ booking, onSubmit, onCancel, isLoading, existingBookings = [] }) {
   const { data: settingsList = [] } = useQuery({
@@ -54,8 +55,8 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
     shift_time: 'مسائي',
     service_type: 'خدمات كاملة',
     notes: '',
-    status: 'معلق',
-    base_price: hallSettings.evening_price || 12000,
+    status: DEFAULT_BOOKING_STATUS,
+    base_price: DEFAULT_BOOKING_PRICE,
     items: [],
     discount: 0,
     initial_payment_amount: '',
@@ -194,13 +195,12 @@ export default function BookingForm({ booking, onSubmit, onCancel, isLoading, ex
 
           {/* Saudi Phone Input */}
           <div className="space-y-1.5">
-            <Label className="font-black text-xs text-foreground">رقم الجوال السعودي *</Label>
+            <Label className="font-black text-xs text-foreground">رقم الجوال (اختياري)</Label>
             <div className="relative flex items-center">
               <Input 
                 value={form.customer_phone} 
                 onChange={e => updateField('customer_phone', e.target.value)} 
                 placeholder="05X XXX XXXX"
-                required 
                 dir="ltr" 
                 className="h-11 rounded-2xl bg-card text-sm font-bold text-left pl-3 pr-20 border-border/80 focus-visible:ring-amber-500"
               />

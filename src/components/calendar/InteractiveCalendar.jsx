@@ -1,3 +1,4 @@
+import { gregorianStartColumn } from '@/lib/calendarDates';
 import React, { useState, useMemo } from 'react';
 import { 
   ChevronRight, ChevronLeft, 
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import moment from 'moment-hijri';
+import moment from '@/lib/hijriMoment';
 import { HIJRI_MONTHS, HIJRI_DAYS, getHijriMonthGrid, gregorianToHijri } from '@/lib/hijri';
 import DayBookingsDialog from './DayBookingsDialog';
 import QuickBookingDialog from '@/components/bookings/QuickBookingDialog';
@@ -120,7 +121,7 @@ export default function InteractiveCalendar({ bookings = [] }) {
     const start = startOfMonth(calViewDate);
     const end = endOfMonth(calViewDate);
     const days = eachDayOfInterval({ start, end });
-    const startDow = (start.getDay() + 1) % 7;
+    const startDow = gregorianStartColumn(start.getFullYear(), start.getMonth() + 1);
     return { days, startDow };
   }, [calViewDate]);
 

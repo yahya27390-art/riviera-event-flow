@@ -17,6 +17,8 @@ END $$;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS base_price numeric(12,2);
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS national_id text;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS shift_time text;
+-- Defaults affect only future inserts; never update existing booking statuses.
+ALTER TABLE public.bookings ALTER COLUMN status SET DEFAULT 'مؤكد';
 
 CREATE TABLE IF NOT EXISTS public.accounting_requests (
   id uuid PRIMARY KEY,
@@ -126,8 +128,8 @@ DECLARE b public.bookings%ROWTYPE; result jsonb; deposit numeric := coalesce(nul
 BEGIN
   result := public.accounting_previous(p_request_id, 'booking', p_payload);
   IF result IS NOT NULL THEN RETURN result; END IF;
-  IF coalesce(trim(p_payload->>'customer_name'),'')='' OR coalesce(trim(p_payload->>'customer_phone'),'')='' THEN
-    RAISE EXCEPTION 'اسم العميل ورقم الهاتف مطلوبان';
+  IF coalesce(trim(p_payload->>'customer_name'),'')='' THEN
+    RAISE EXCEPTION 'اسم العميل مطلوب';
   END IF;
   IF coalesce(p_payload->>'event_date','') !~ '^\d{4}-\d{2}-\d{2}$' THEN RAISE EXCEPTION 'تاريخ المناسبة غير صالح'; END IF;
   PERFORM (p_payload->>'event_date')::date;
@@ -141,12 +143,12 @@ BEGIN
     event_date,event_date_hijri,hall_section,event_type,shift_time,service_type,status,items,
     base_price,total_amount,discount,final_amount,paid_amount,remaining_amount,initial_payment_amount,initial_payment_method,notes)
   VALUES (p_payload->>'booking_number',nullif(p_payload->>'customer_id','')::uuid,p_payload->>'customer_name',
-    p_payload->>'customer_phone',p_payload->>'national_id',p_payload->>'voucher_number',p_payload->>'event_date',
+    coalesce(p_payload->>'customer_phone',''),p_payload->>'national_id',p_payload->>'voucher_number',p_payload->>'event_date',
     p_payload->>'event_date_hijri',p_payload->>'hall_section',coalesce(p_payload->>'event_type','زواج'),
-    p_payload->>'shift_time',coalesce(p_payload->>'service_type','خدمات كاملة'),coalesce(p_payload->>'status','معلق'),
+    p_payload->>'shift_time',coalesce(p_payload->>'service_type','خدمات كاملة'),coalesce(p_payload->>'status','مؤكد'),
     coalesce(p_payload->'items','[]'::jsonb),nullif(p_payload->>'base_price','')::numeric,gross,discount_value,gross-discount_value,
     0,gross-discount_value,deposit,coalesce(p_payload->>'initial_payment_method','نقدي'),p_payload->>'notes') RETURNING * INTO b;
-  IF p_payload->>'auto_create_customer'='true' THEN
+  IF p_payload->>'auto_create_customer'='true' AND coalesce(trim(b.customer_phone),'') <> '' THEN
     PERFORM pg_advisory_xact_lock(hashtextextended(regexp_replace(b.customer_phone,'\D','','g'),1));
     IF NOT EXISTS (SELECT 1 FROM public.customers WHERE regexp_replace(phone,'\D','','g')=regexp_replace(b.customer_phone,'\D','','g')) THEN
       INSERT INTO public.customers(name,phone,notes) VALUES(b.customer_name,b.customer_phone,'عميل حجز سريع');

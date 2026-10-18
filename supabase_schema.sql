@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     hall_section TEXT DEFAULT 'رجال ونساء',
     event_type TEXT NOT NULL DEFAULT 'زواج',
     service_type TEXT DEFAULT 'خدمات كاملة',
-    status TEXT NOT NULL DEFAULT 'معلق',
+    status TEXT NOT NULL DEFAULT 'مؤكد',
     items JSONB DEFAULT '[]'::JSONB,
     total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     discount NUMERIC(12, 2) DEFAULT 0.00,

@@ -69,7 +69,7 @@
         "\u0645\u0639\u0644\u0642",
         "\u0645\u0644\u063a\u064a"
       ],
-      "default": "\u0645\u0639\u0644\u0642",
+      "default": "\u0645\u0624\u0643\u062f",
       "description": "\u062d\u0627\u0644\u0629 \u0627\u0644\u062d\u062c\u0632"
     },
     "items": {
@@ -128,7 +128,6 @@
   },
   "required": [
     "customer_name",
-    "customer_phone",
     "event_date",
     "event_type"
   ],

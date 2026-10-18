@@ -1,18 +1,18 @@
+import { civilDateLabel } from '@/lib/calendarDates';
+import { normalizeDateDigits } from '@/lib/hijriMoment';
 import React, { useState, useRef, useEffect } from 'react';
-import moment from 'moment-hijri';
+import moment from '@/lib/hijriMoment';
 import { HIJRI_MONTHS, HIJRI_DAYS, getHijriMonthGrid } from '@/lib/hijri';
 import { ChevronRight, ChevronLeft, Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
 
 export default function HijriDatePicker({ value, onChange, label, required, placeholder }) {
   const today = moment();
   const initYear = value?.hijri
-    ? parseInt(value.hijri.split('/')[0])
+    ? parseInt(normalizeDateDigits(value.hijri).split('/')[0])
     : parseInt(today.format('iYYYY'));
   const initMonth = value?.hijri
-    ? parseInt(value.hijri.split('/')[1])
+    ? parseInt(normalizeDateDigits(value.hijri).split('/')[1])
     : parseInt(today.format('iMM'));
 
   const [open, setOpen] = useState(false);
@@ -25,7 +25,7 @@ export default function HijriDatePicker({ value, onChange, label, required, plac
   useEffect(() => {
     setInputVal(value?.hijri || '');
     if (value?.hijri) {
-      const parts = value.hijri.split('/');
+      const parts = normalizeDateDigits(value.hijri).split('/');
       if (parts.length === 3) {
         setViewYear(parseInt(parts[0]));
         setViewMonth(parseInt(parts[1]));
@@ -74,7 +74,7 @@ export default function HijriDatePicker({ value, onChange, label, required, plac
   };
 
   const selectedDay = value?.hijri
-    ? parseInt(value.hijri.split('/')[2])
+    ? parseInt(normalizeDateDigits(value.hijri).split('/')[2])
     : null;
   const isSelected = (day) =>
     selectedDay === day &&
@@ -82,7 +82,7 @@ export default function HijriDatePicker({ value, onChange, label, required, plac
 
   // Formatted display in Arabic
   const gregorianFormatted = value?.gregorian
-    ? format(new Date(value.gregorian), 'EEEE، dd MMMM yyyy', { locale: ar })
+    ? civilDateLabel(normalizeDateDigits(value.gregorian))
     : null;
 
   return (

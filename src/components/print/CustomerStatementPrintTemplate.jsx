@@ -1,9 +1,10 @@
+import { matchesStatementCustomer } from '@/lib/statementCustomers';
 import React from 'react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/utils/bookingNumber';
 import { getHallLogoUrl, DEFAULT_HALL_NAME, DEFAULT_CITY, DEFAULT_ADDRESS } from '@/lib/branding';
 import { gregorianToHijri } from '@/lib/hijri';
-import moment from 'moment-hijri';
+import moment from '@/lib/hijriMoment';
 
 function toHijri(dateStr) {
   if (!dateStr) return '';
@@ -38,7 +39,7 @@ export function buildCustomerStatementHTML(customer, bookings = [], payments = [
   const nowGreg = format(now, 'dd/MM/yyyy');
   const nowHijri = toHijri(now.toISOString().split('T')[0]) || gregorianToHijri(format(now, 'yyyy-MM-dd'));
 
-  const customerBookings = bookings.filter(b => b.customer_phone === customer.phone);
+  const customerBookings = bookings.filter(b => matchesStatementCustomer(b, customer));
   const customerPayments = payments.filter(p => customerBookings.some(b => b.id === p.booking_id));
 
   // Build unified timeline sorted by date

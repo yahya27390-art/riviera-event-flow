@@ -1,7 +1,7 @@
 /**
  * Hijri ↔ Gregorian helpers using moment-hijri
  */
-import moment from 'moment-hijri';
+import moment from './hijriMoment.js';
 
 /** Convert Gregorian ISO date string → Hijri display string "١٤٤٦/٠٧/١٥" */
 export function gregorianToHijri(gregorianDateStr) {

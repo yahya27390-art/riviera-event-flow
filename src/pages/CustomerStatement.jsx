@@ -1,3 +1,4 @@
+import { statementCustomers, matchesStatementCustomer } from '@/lib/statementCustomers';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -35,14 +36,7 @@ export default function CustomerStatement() {
   });
   const hallSettings = settingsList[0] || {};
 
-  // Get unique customers from bookings
-  const customersMap = {};
-  bookings.forEach(b => {
-    if (!customersMap[b.customer_phone]) {
-      customersMap[b.customer_phone] = { name: b.customer_name, phone: b.customer_phone };
-    }
-  });
-  const customers = Object.values(customersMap);
+  const customers = statementCustomers(bookings);
 
   const filteredCustomers = customers.filter(c =>
     !searchQuery ||
@@ -51,7 +45,7 @@ export default function CustomerStatement() {
   );
 
   const customerBookings = selectedCustomer
-    ? bookings.filter(b => b.customer_phone === selectedCustomer.phone)
+    ? bookings.filter(b => matchesStatementCustomer(b, selectedCustomer))
     : [];
 
   const customerPayments = selectedCustomer
@@ -142,8 +136,8 @@ export default function CustomerStatement() {
                 <div className="divide-y max-h-[550px] overflow-y-auto">
                   {filteredCustomers.map(c => (
                     <button
-                      key={c.phone}
-                      className={`w-full text-right px-4 py-3 hover:bg-muted/50 transition-colors ${selectedCustomer?.phone === c.phone ? 'bg-primary/10 border-r-4 border-emerald-600' : ''}`}
+                      key={c.key}
+                      className={`w-full text-right px-4 py-3 hover:bg-muted/50 transition-colors ${selectedCustomer?.key === c.key ? 'bg-primary/10 border-r-4 border-emerald-600' : ''}`}
                       onClick={() => setSelectedCustomer(c)}
                     >
                       <div className="flex items-center gap-3">

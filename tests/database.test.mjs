@@ -189,6 +189,20 @@ test('backup requires administrator and exports all tables without any writes', 
   for(const table of tables) assert.equal(result[table].length,before[table].length);
   assert.deepEqual(await snapshot(),before);
 });
+test('new bookings accept no phone and default to confirmed while preserving old ledgers', async () => {
+  const before=await snapshot();
+  const result=await rpc('create_booking_with_deposit',{booking_number:'NO-PHONE-001',customer_name:'بدون هاتف',
+    event_date:'2026-11-18',total_amount:5500,auto_create_customer:true});
+  assert.equal(result.customer_phone,'');assert.equal(result.status,'مؤكد');
+  assert.equal(result.final_amount,5500);assert.equal(result.remaining_amount,5500);
+  const after=await snapshot();
+  for(const table of ['payments','cash_transactions','bank_transactions','expenses','customers']) assert.deepEqual(after[table],before[table]);
+});
+test('quick booking can explicitly remain pending without collecting a deposit', async () => {
+  const result=await rpc('create_booking_with_deposit',{booking_number:'PENDING-001',customer_name:'حجز معلق',
+    customer_phone:'',event_date:'2026-11-19',total_amount:7000,status:'معلق'});
+  assert.equal(result.status,'معلق');assert.equal(result.paid_amount,0);
+});
 test('account revocation immediately blocks a previously authenticated actor', async () => {
   await db.exec(`RESET ROLE; UPDATE auth.users SET raw_app_meta_data=raw_app_meta_data || '{"disabled":true}' WHERE id='${accountant}'`);
   await asUser();

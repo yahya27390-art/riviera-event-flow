@@ -1,3 +1,4 @@
+import { BOOKING_PRICE_PRESETS, DEFAULT_BOOKING_PRICE, DEFAULT_BOOKING_STATUS, QUICK_BOOKING_STATUSES } from '@/lib/bookingDefaults';
 import { createBookingWithDeposit } from '@/api/accountingOperations';
 import React, { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 import { DEFAULT_SECTIONS } from '@/lib/systemSettings';
 
-const pricePresets = [8000, 10000, 12000, 15000];
+const pricePresets = BOOKING_PRICE_PRESETS;
 
 export default function QuickBookingDialog({ open, onClose, presetDate, presetHijri, availableSections: propSections }) {
   const queryClient = useQueryClient();
@@ -48,13 +49,19 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
   const [form, setForm] = useState({
     customer_name: '',
     customer_phone: '',
+    status: DEFAULT_BOOKING_STATUS,
     event_date: presetDate || '',
     event_date_hijri: presetHijri || (presetDate ? gregorianToHijri(presetDate) : ''),
     hall_section: 'كامل القاعة (قسمين)',
-    base_price: hallSettings.evening_price || 12000,
+    base_price: DEFAULT_BOOKING_PRICE,
     initial_payment_amount: '',
     initial_payment_method: 'نقدي',
   });
+
+  React.useEffect(() => {
+    if (open) setForm(previous => ({ ...previous, customer_name: '', customer_phone: '',
+      status: DEFAULT_BOOKING_STATUS, base_price: DEFAULT_BOOKING_PRICE, initial_payment_amount: '' }));
+  }, [open]);
 
   // Synchronize preset date and defaults whenever dialog opens or props change
   React.useEffect(() => {
@@ -65,7 +72,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
         event_date: presetDate || prev.event_date || '',
         event_date_hijri: presetHijri || (presetDate ? gregorianToHijri(presetDate) : prev.event_date_hijri || ''),
         hall_section: prev.hall_section || defaultSec,
-        base_price: prev.base_price || hallSettings.evening_price || 12000
+        base_price: prev.base_price || DEFAULT_BOOKING_PRICE
       }));
     }
   }, [open, presetDate, presetHijri, hallSettings.evening_price, sectionsList]);
@@ -86,8 +93,8 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
 
   const createBooking = useMutation({
     mutationFn: data => createBookingWithDeposit({ ...data,
-      customer_name: data.customer_name.trim(), customer_phone: data.customer_phone.trim(),
-      booking_number: bookingNumber.current, event_type: 'زواج', status: 'معلق', auto_create_customer: true,
+      customer_name: data.customer_name.trim(), customer_phone: (data.customer_phone || '').trim(),
+      booking_number: bookingNumber.current, event_type: 'زواج', status: data.status || DEFAULT_BOOKING_STATUS, auto_create_customer: true,
       items: [], discount: 0, total_amount: Number(data.base_price),
       final_amount: Number(data.base_price), initial_payment_amount: Number(data.initial_payment_amount || 0) }),
     onSuccess: () => {
@@ -104,7 +111,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.customer_name.trim() || !form.customer_phone.trim() || !form.event_date) {
+    if (!form.customer_name.trim() || !form.event_date) {
       toast.error('يرجى تعبئة كافة الحقول الأساسية المطلوبة');
       return;
     }
@@ -149,13 +156,12 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
 
           {/* Saudi Phone Number Input */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-black text-foreground">رقم الجوال السعودي *</Label>
+            <Label className="text-xs font-black text-foreground">رقم الجوال (اختياري)</Label>
             <div className="relative flex items-center">
               <Input
                 value={form.customer_phone}
                 onChange={e => updateField('customer_phone', e.target.value)}
                 placeholder="05X XXX XXXX"
-                required
                 dir="ltr"
                 className="h-10.5 rounded-2xl bg-card font-bold text-sm text-left pr-20"
               />
@@ -216,6 +222,20 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs font-black text-foreground">حالة الحجز</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="حالة الحجز">
+              {QUICK_BOOKING_STATUSES.map(status => (
+                <button key={status} type="button" aria-pressed={form.status === status}
+                  onClick={() => updateField('status', status)}
+                  className={cn('py-2.5 rounded-xl text-sm font-bold border',
+                    form.status === status ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-card text-foreground border-border')}>
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Base Price with Quick Presets */}
           <div className="space-y-2 p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20">
             <div className="flex items-center justify-between">
@@ -225,7 +245,7 @@ export default function QuickBookingDialog({ open, onClose, presetDate, presetHi
                   type="number"
                   value={form.base_price}
                   onChange={e => updateField('base_price', e.target.value)}
-                  placeholder="12000"
+                  placeholder="5500"
                   dir="ltr"
                   className="w-28 h-8 text-left font-black text-primary bg-card rounded-xl"
                   required

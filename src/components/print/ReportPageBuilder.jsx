@@ -9,7 +9,7 @@
  */
 import { fc, fd } from '@/lib/printReport';
 import { getHallLogoUrl, cleanCustomerNotes, DEFAULT_HALL_NAME } from '@/lib/branding';
-import moment from 'moment-hijri';
+import moment from '@/lib/hijriMoment';
 
 function toHijri(dateStr) {
   if (!dateStr) return '';

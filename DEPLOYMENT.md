@@ -6,6 +6,15 @@ before completing the Auth/database cutover below.
 
 ## Data guarantees
 
+- New booking presets are 5500, 7000, 8000 and 8500 SAR, with 5500 selected
+  initially. New normal/quick bookings default to confirmed; quick booking also
+  exposes confirmed/pending. Existing contract amounts and statuses are retained.
+- Phone is optional. A customer without a phone is identified by linked customer
+  ID or booking ID in statements, so blank phones never merge unrelated accounts.
+- Both calendar grids use Sunday-first columns; civil date labels ignore browser
+  timezone offsets. Hijri adapters always emit ASCII ISO dates while accepting
+  Arabic/Persian digits. Stored event dates are never bulk shifted or rewritten.
+
 - Migrations add nullable booking fields, new request metadata, RPCs, access
   policies and protection triggers. They do not backfill, normalize, delete or
   reconcile existing bookings, receipts, expenses or cash/bank transactions.
@@ -33,6 +42,10 @@ before completing the Auth/database cutover below.
 1. Take an operator-controlled full database backup and prove restoration into
    an **isolated** database. Export Auth accounts/config separately; application
    JSON exports do not contain Supabase Auth password hashes or infrastructure.
+   `supabase/operations/protected_pre_cutover_backup.sql` prepares an alternative
+   operator-only snapshot in the same database. It grants no browser access and
+   exports no rows. Run only with explicit authorization for the production backup;
+   it is an operation script, not an automatically applied application migration.
 2. Record full ledger sums and per-table fingerprints using
    `supabase/verification/financial_baseline.sql`. Keep the output securely.
    Inspect actual production columns, grants and existing triggers against the
