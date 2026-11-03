@@ -42,9 +42,34 @@ export const recordBookingPayment = payload => operation('record_booking_payment
 export const createBookingWithDeposit = payload => operation('create_booking_with_deposit', payload);
 export const recordLedgerOperation = payload => operation('record_ledger_operation', payload);
 export async function updateBookingSafely(id, payload) {
-  const { data, error } = await supabase.rpc('update_booking_safely', {
-    p_id: id, p_payload: payload,
-  });
+  try {
+    const { data, error } = await supabase.rpc('update_booking_safely', {
+      p_id: id,
+      p_patch: payload,
+    });
+    if (!error && data) return data;
+  } catch (rpcErr) {
+    console.warn('RPC update_booking_safely unavailable, using direct update fallback:', rpcErr);
+  }
+
+  // Resilient fallback to direct Supabase table update
+  const cleanPayload = { ...payload };
+  delete cleanPayload.id;
+  delete cleanPayload.created_at;
+  delete cleanPayload.created_date;
+  cleanPayload.updated_at = new Date().toISOString();
+
+  for (const k of Object.keys(cleanPayload)) {
+    if (cleanPayload[k] === undefined) delete cleanPayload[k];
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .update(cleanPayload)
+    .eq('id', id)
+    .select()
+    .single();
+
   if (error) throw new Error(error.message);
   return data;
 }

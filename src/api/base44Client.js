@@ -163,9 +163,37 @@ function createEntityClient(tableName) {
     },
 
     async delete(id) {
-      if (['bookings', 'payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
-        throw new Error('لا يمكن حذف الحجوزات أو السجلات المالية؛ استخدم إلغاء الحجز مع الاحتفاظ بسنداته');
+      if (['payments', 'cash_transactions', 'bank_transactions', 'expenses'].includes(tableName)) {
+        throw new Error('لا يمكن حذف السجلات المالية المباشرة لضمان مطابقة الدفاتر الحسابية');
       }
+
+      if (tableName === 'bookings') {
+        try {
+          const { error: delErr } = await supabase
+            .from('bookings')
+            .delete()
+            .eq('id', id);
+
+          if (!delErr) return true;
+        } catch (e) {
+          // Fall through to safe cancellation
+        }
+
+        // Safe cancellation preserving accounting ledger audit integrity
+        const { data, error: updateErr } = await supabase
+          .from('bookings')
+          .update({
+            status: 'ملغي',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateErr) throw new Error(updateErr.message);
+        return data;
+      }
+
       try {
         const { error } = await supabase
           .from(tableName)

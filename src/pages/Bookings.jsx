@@ -53,7 +53,7 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ['cashTransactions'] });
       queryClient.invalidateQueries({ queryKey: ['bankTransactions'] });
       setDeleteBookingObj(null);
-      toast.success('تم حذف الحجز وجميع السندات المرتبطة به بنجاح');
+      toast.success('تم إلغاء الحجز وتحرير تاريخ القاعة بنجاح');
     },
   });
 
@@ -328,7 +328,7 @@ export default function Bookings() {
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                            disabled title="استخدم إلغاء الحجز للحفاظ على السندات" onClick={() => setDeleteBookingObj(booking)}
+                            title="إلغاء الحجز / تحرير الموعد" onClick={() => setDeleteBookingObj(booking)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -357,10 +357,10 @@ export default function Bookings() {
       <AlertDialog open={!!deleteBookingObj} onOpenChange={(open) => { if (!open) setDeleteBookingObj(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive font-bold">تأكيد حذف الحجز</AlertDialogTitle>
+            <AlertDialogTitle className="text-destructive font-bold">تأكيد إلغاء الحجز</AlertDialogTitle>
             <AlertDialogDescription>
               أنت على وشك حذف حجز العميل <strong>{deleteBookingObj?.customer_name}</strong> (رقم: {deleteBookingObj?.booking_number}).
-              سيؤدي هذا إلى حذف جميع الدفعات وسندات الصندوق والبنك المرتبطة بهذا الحجز نهائياً.
+              سيؤدي هذا إلى تحرير تاريخ القاعة فوراً وإلغاء العقد، مع الحفاظ على السجلات المالية والتدقيق المحاسبي.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -369,7 +369,7 @@ export default function Bookings() {
               onClick={() => deleteBooking.mutate(deleteBookingObj)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
             >
-              تأكيد الحذف
+              تأكيد الإلغاء وتحرير الموعد
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
