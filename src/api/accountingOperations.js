@@ -42,26 +42,40 @@ export const recordBookingPayment = payload => operation('record_booking_payment
 export const createBookingWithDeposit = payload => operation('create_booking_with_deposit', payload);
 export const recordLedgerOperation = payload => operation('record_ledger_operation', payload);
 export async function updateBookingSafely(id, payload) {
-  try {
-    const { data, error } = await supabase.rpc('update_booking_safely', {
-      p_id: id,
-      p_patch: payload,
-    });
-    if (!error && data) return data;
-  } catch (rpcErr) {
-    console.warn('RPC update_booking_safely unavailable, using direct update fallback:', rpcErr);
-  }
+  const validCols = new Set([
+    'customer_name',
+    'customer_phone',
+    'national_id',
+    'voucher_number',
+    'event_date',
+    'event_date_hijri',
+    'hall_section',
+    'section_id',
+    'package_id',
+    'event_type',
+    'shift_time',
+    'service_type',
+    'status',
+    'items',
+    'base_price',
+    'total_amount',
+    'discount',
+    'final_amount',
+    'paid_amount',
+    'remaining_amount',
+    'initial_payment_amount',
+    'initial_payment_method',
+    'notes',
+    'updated_at'
+  ]);
 
-  // Resilient fallback to direct Supabase table update
-  const cleanPayload = { ...payload };
-  delete cleanPayload.id;
-  delete cleanPayload.created_at;
-  delete cleanPayload.created_date;
+  const cleanPayload = {};
+  for (const [key, val] of Object.entries(payload || {})) {
+    if (validCols.has(key) && val !== undefined) {
+      cleanPayload[key] = val;
+    }
+  }
   cleanPayload.updated_at = new Date().toISOString();
-
-  for (const k of Object.keys(cleanPayload)) {
-    if (cleanPayload[k] === undefined) delete cleanPayload[k];
-  }
 
   const { data, error } = await supabase
     .from('bookings')
@@ -70,6 +84,10 @@ export async function updateBookingSafely(id, payload) {
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('Failed to update booking in Supabase:', error);
+    throw new Error(error.message);
+  }
+
   return data;
 }

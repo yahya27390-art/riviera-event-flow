@@ -34,7 +34,7 @@ export default function BookingFormPage() {
   const updateBooking = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Booking.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries();
       navigate(`/bookings/${id}`);
       toast.success('تم تحديث الحجز');
     },
